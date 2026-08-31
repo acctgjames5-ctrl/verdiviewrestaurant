@@ -1,38 +1,14 @@
 <?php
 
-/* =========================================================
-   NEON POSTGRESQL DATABASE CONFIGURATION
-   Render Environment Variables
-========================================================= */
-
 $host = getenv('DB_HOST');
 $port = getenv('DB_PORT') ?: '5432';
 $db   = getenv('DB_NAME') ?: 'neondb';
 $user = getenv('DB_USER');
 $pass = getenv('DB_PASSWORD');
 
-
-/* =========================================================
-   VALIDATE DATABASE SETTINGS
-========================================================= */
-
-if (!$host || !$user || !$pass) {
-    die("Database configuration is missing. Please check Render Environment Variables.");
-}
-
-
-/* =========================================================
-   DATABASE CONNECTION
-========================================================= */
-
 try {
 
-    $dsn = "pgsql:"
-         . "host={$host};"
-         . "port={$port};"
-         . "dbname={$db};"
-         . "sslmode=require;"
-         . "options='endpoint=ep-frosty-surf-azo6it4t'";
+    $dsn = "pgsql:host={$host};port={$port};dbname={$db};sslmode=require";
 
     $pdo = new PDO(
         $dsn,
@@ -48,12 +24,11 @@ try {
 } catch (PDOException $e) {
 
     die(
-        "Database connection failed: "
-        . htmlspecialchars(
+        "Database connection failed: " .
+        htmlspecialchars(
             $e->getMessage(),
             ENT_QUOTES,
             'UTF-8'
         )
     );
-
 }
