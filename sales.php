@@ -779,11 +779,10 @@ if (
         );
 
 
-    $deleteStmt = $pdo->prepare("
-        DELETE FROM sales
-        WHERE id = ?
-        LIMIT 1
-    ");
+   $deleteStmt = $pdo->prepare("
+    DELETE FROM sales
+    WHERE id = ?
+");
 
 
     $deleteStmt->execute([
