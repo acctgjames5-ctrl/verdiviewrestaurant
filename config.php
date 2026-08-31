@@ -1,19 +1,13 @@
 <?php
 
-$host = getenv('DB_HOST');
-$port = getenv('DB_PORT') ?: '5432';
-$db   = getenv('DB_NAME') ?: 'neondb';
-$user = getenv('DB_USER');
-$pass = getenv('DB_PASSWORD');
+$databaseUrl = getenv('postgresql://neondb_owner:npg_i0zfq7OoLTMQ@ep-frosty-surf-azo6it4t-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require');
 
 try {
 
-    $dsn = "pgsql:host={$host};port={$port};dbname={$db};sslmode=require";
-
     $pdo = new PDO(
-        $dsn,
-        $user,
-        $pass,
+        $databaseUrl,
+        null,
+        null,
         [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
