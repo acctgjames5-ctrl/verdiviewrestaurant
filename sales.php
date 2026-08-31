@@ -395,7 +395,7 @@ if (
             SELECT *
             FROM sales
             WHERE id = ?
-            LIMIT 1
+            
             FOR UPDATE
         ");
 
@@ -639,7 +639,7 @@ if (
                 accounts_receivable = ?,
                 notes = ?
             WHERE id = ?
-            LIMIT 1
+        
         ");
 
 
