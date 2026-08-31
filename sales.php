@@ -2095,7 +2095,7 @@ elseif (
                     remarks = ?,
                     accounts_receivable = ?
                 WHERE id = ?
-                LIMIT 1
+              
             ");
 
 
