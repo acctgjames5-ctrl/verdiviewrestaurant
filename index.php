@@ -1,3 +1,4 @@
+
 <?php
 
 /* =========================================================
@@ -44,10 +45,6 @@ $branch = (int)(
     ?? 0
 );
 
-if ($branch > 0) {
-    $_SESSION['branch_id'] = $branch;
-}
-
 
 /* =========================================================
    VIEWER SEARCH
@@ -58,11 +55,19 @@ $viewerSalesSearch = trim(
 );
 
 
+if ($branch > 0) {
+
+    $_SESSION['branch_id'] = $branch;
+
+}
+
+
 /* =========================================================
    BRANCH NAME
 ========================================================= */
 
 $branchName = "All Branches";
+
 
 if ($branch > 0) {
 
@@ -78,6 +83,7 @@ if ($branch > 0) {
 
     $foundBranch = $stmt->fetchColumn();
 
+
     if ($foundBranch) {
 
         $branchName = $foundBranch;
@@ -87,7 +93,9 @@ if ($branch > 0) {
         $branch = 0;
 
         unset($_SESSION['branch_id']);
+
     }
+
 }
 
 
@@ -97,6 +105,7 @@ if ($branch > 0) {
 
 $defaultFrom = date('Y-m-01');
 $defaultTo   = date('Y-m-d');
+
 
 $dateFrom = $_GET['date_from'] ?? $defaultFrom;
 $dateTo   = $_GET['date_to']   ?? $defaultTo;
@@ -111,12 +120,14 @@ $dateFromObj = DateTime::createFromFormat(
     $dateFrom
 );
 
+
 if (
     !$dateFromObj ||
     $dateFromObj->format('Y-m-d') !== $dateFrom
 ) {
 
     $dateFrom = $defaultFrom;
+
 }
 
 
@@ -129,12 +140,14 @@ $dateToObj = DateTime::createFromFormat(
     $dateTo
 );
 
+
 if (
     !$dateToObj ||
     $dateToObj->format('Y-m-d') !== $dateTo
 ) {
 
     $dateTo = $defaultTo;
+
 }
 
 
@@ -149,6 +162,7 @@ if ($dateFrom > $dateTo) {
     $dateFrom = $dateTo;
 
     $dateTo = $temp;
+
 }
 
 
@@ -205,6 +219,7 @@ function scalarQuery(
 $branchFilter = '';
 $branchParams = [];
 
+
 if ($branch > 0) {
 
     $branchFilter = "
@@ -214,6 +229,7 @@ if ($branch > 0) {
     $branchParams = [
         $branch
     ];
+
 }
 
 
@@ -227,14 +243,17 @@ $totalSales = scalarQuery(
     SELECT COALESCE(
         SUM(
             COALESCE(amount, 0)
-            + COALESCE(\"service_charge\", 0)
-            - COALESCE(\"discount\", 0)
+            + COALESCE(service_charge, 0)
+            - COALESCE(discount, 0)
         ),
         0
     )
+
     FROM sales
+
     WHERE sale_date >= ?
       AND sale_date < ?
+
       $branchFilter
     ",
     array_merge(
@@ -260,9 +279,12 @@ $totalPurchases = scalarQuery(
         ),
         0
     )
+
     FROM purchases
+
     WHERE purchase_date >= ?
       AND purchase_date < ?
+
       $branchFilter
     ",
     array_merge(
@@ -288,9 +310,12 @@ $totalExpenses = scalarQuery(
         ),
         0
     )
+
     FROM expenses
+
     WHERE expense_date >= ?
       AND expense_date < ?
+
       $branchFilter
     ",
     array_merge(
@@ -311,9 +336,12 @@ $countSales = scalarQuery(
     $pdo,
     "
     SELECT COUNT(*)
+
     FROM sales
+
     WHERE sale_date >= ?
       AND sale_date < ?
+
       $branchFilter
     ",
     array_merge(
@@ -330,9 +358,12 @@ $countPurchases = scalarQuery(
     $pdo,
     "
     SELECT COUNT(*)
+
     FROM purchases
+
     WHERE purchase_date >= ?
       AND purchase_date < ?
+
       $branchFilter
     ",
     array_merge(
@@ -349,9 +380,12 @@ $countExpenses = scalarQuery(
     $pdo,
     "
     SELECT COUNT(*)
+
     FROM expenses
+
     WHERE expense_date >= ?
       AND expense_date < ?
+
       $branchFilter
     ",
     array_merge(
@@ -390,23 +424,23 @@ $sqlViewerUnpaid = "
 
         s.customer,
 
-        s.\"pax\" AS pax,
+        s.Pax,
 
-        s.\"discount\" AS discount,
+        s.Discount,
 
         s.description,
 
         s.amount,
 
-        s.\"service_charge\" AS service_charge,
+        s.Service_charge,
 
         s.remarks,
 
-        s.notes,
+s.notes,
 
-        s.accounts_receivable,
+s.accounts_receivable,
 
-        b.branch_name
+b.branch_name
 
     FROM sales s
 
@@ -443,24 +477,24 @@ if ($viewerSalesSearch !== '') {
 
     $sqlViewerUnpaid .= "
         AND (
-            s.customer ILIKE ?
-            OR s.reference_no ILIKE ?
-            OR s.description ILIKE ?
-            OR s.remarks ILIKE ?
-            OR s.notes ILIKE ?
-            OR b.branch_name ILIKE ?
+            s.customer LIKE ?
+            OR s.reference_no LIKE ?
+            OR s.description LIKE ?
+            OR s.remarks LIKE ?
+            OR b.branch_name LIKE ?
         )
     ";
 
     $searchLike =
         '%' . $viewerSalesSearch . '%';
 
+
     $viewerUnpaidParams[] = $searchLike;
     $viewerUnpaidParams[] = $searchLike;
     $viewerUnpaidParams[] = $searchLike;
     $viewerUnpaidParams[] = $searchLike;
     $viewerUnpaidParams[] = $searchLike;
-    $viewerUnpaidParams[] = $searchLike;
+
 }
 
 
@@ -475,6 +509,7 @@ if ($branch > 0) {
     ";
 
     $viewerUnpaidParams[] = $branch;
+
 }
 
 
@@ -489,6 +524,7 @@ $sqlViewerUnpaid .= "
         s.id DESC
 
     LIMIT 500
+
 ";
 
 
@@ -503,9 +539,11 @@ try {
             $sqlViewerUnpaid
         );
 
+
     $stmtViewerUnpaid->execute(
         $viewerUnpaidParams
     );
+
 
     $viewerUnpaidSales =
         $stmtViewerUnpaid->fetchAll(
@@ -540,17 +578,18 @@ try {
                 +
 
                 (float)(
-                    $row['service_charge']
+                    $row['Service_charge']
                     ?? 0
                 )
 
                 -
 
                 (float)(
-                    $row['discount']
+                    $row['Discount']
                     ?? 0
                 )
             );
+
     }
 
     unset($row);
@@ -569,6 +608,7 @@ try {
                 $row['_computed_unpaid']
                 ?? 0
             );
+
     }
 
 
@@ -583,6 +623,7 @@ try {
     $totalViewerUnpaid = 0;
 
     $countViewerUnpaid = 0;
+
 }
 
 
@@ -604,8 +645,11 @@ include "header.php";
     <div>
 
         <div class="dashboard-title fw-bold fs-4">
+
             Dashboard
+
         </div>
+
 
         <div class="dashboard-subtitle text-muted">
 
@@ -617,6 +661,8 @@ include "header.php";
 
     </div>
 
+
+    <!-- DASHBOARD FILTER BUTTON -->
 
     <button
         type="button"
@@ -652,6 +698,8 @@ include "header.php";
         <div class="modal-content dashboard-date-modal">
 
 
+            <!-- HEADER -->
+
             <div class="modal-header">
 
                 <div>
@@ -666,6 +714,7 @@ include "header.php";
                         Filter Dashboard
 
                     </h5>
+
 
                     <div class="small text-muted mt-1">
 
@@ -685,6 +734,8 @@ include "header.php";
 
             </div>
 
+
+            <!-- FORM -->
 
             <form
                 method="get"
@@ -724,6 +775,8 @@ include "header.php";
                     <div class="date-filter-box">
 
 
+                        <!-- DATE FROM -->
+
                         <div class="mb-3">
 
                             <label
@@ -752,6 +805,8 @@ include "header.php";
                         </div>
 
 
+                        <!-- DATE TO -->
+
                         <div class="mb-3">
 
                             <label
@@ -779,6 +834,8 @@ include "header.php";
 
                         </div>
 
+
+                        <!-- CURRENT RANGE -->
 
                         <div class="current-date-filter">
 
@@ -814,6 +871,8 @@ include "header.php";
 
                 </div>
 
+
+                <!-- FOOTER -->
 
                 <div class="modal-footer">
 
@@ -877,6 +936,10 @@ include "header.php";
 
 <style>
 
+/* =========================================================
+   VIEWER DASHBOARD
+========================================================= */
+
 .viewer-dashboard-grid {
 
     display:grid;
@@ -887,6 +950,7 @@ include "header.php";
     gap:20px;
 
     margin-bottom:20px;
+
 }
 
 
@@ -904,6 +968,7 @@ include "header.php";
     border:1px solid #eef1f5;
 
     min-height:180px;
+
 }
 
 
@@ -924,6 +989,7 @@ include "header.php";
     font-size:20px;
 
     margin-bottom:16px;
+
 }
 
 
@@ -936,6 +1002,7 @@ include "header.php";
     font-weight:600;
 
     margin-bottom:8px;
+
 }
 
 
@@ -946,6 +1013,7 @@ include "header.php";
     font-weight:800;
 
     color:#1f2937;
+
 }
 
 
@@ -956,6 +1024,7 @@ include "header.php";
     font-size:12px;
 
     margin-top:10px;
+
 }
 
 
@@ -964,6 +1033,7 @@ include "header.php";
     color:#20b878;
 
     background:rgba(32,184,120,.10);
+
 }
 
 
@@ -972,6 +1042,7 @@ include "header.php";
     color:#f29420;
 
     background:rgba(242,148,32,.10);
+
 }
 
 
@@ -980,6 +1051,7 @@ include "header.php";
     color:#7b45e6;
 
     background:rgba(123,69,230,.10);
+
 }
 
 
@@ -995,6 +1067,7 @@ include "header.php";
         0 4px 18px rgba(0,0,0,.06);
 
     overflow:hidden;
+
 }
 
 
@@ -1013,6 +1086,7 @@ include "header.php";
     gap:15px;
 
     flex-wrap:wrap;
+
 }
 
 
@@ -1023,6 +1097,7 @@ include "header.php";
     font-weight:700;
 
     color:#273142;
+
 }
 
 
@@ -1031,6 +1106,7 @@ include "header.php";
     color:#dc3545;
 
     margin-right:7px;
+
 }
 
 
@@ -1041,6 +1117,7 @@ include "header.php";
     font-size:18px;
 
     font-weight:800;
+
 }
 
 
@@ -1051,6 +1128,7 @@ include "header.php";
     color:#7d8795;
 
     margin-top:3px;
+
 }
 
 
@@ -1059,6 +1137,7 @@ include "header.php";
     width:100%;
 
     overflow-x:auto;
+
 }
 
 
@@ -1069,6 +1148,7 @@ include "header.php";
     padding:15px 20px 0;
 
     max-width:100%;
+
 }
 
 
@@ -1082,12 +1162,14 @@ include "header.php";
     border-radius:10px;
 
     overflow:hidden;
+
 }
 
 
 .viewer-sales-search .form-control {
 
     min-height:42px;
+
 }
 
 
@@ -1096,12 +1178,14 @@ include "header.php";
     background:#fff;
 
     border-right:0;
+
 }
 
 
 .viewer-sales-search .form-control {
 
     border-left:0;
+
 }
 
 
@@ -1111,7 +1195,8 @@ include "header.php";
 
     border-collapse:collapse;
 
-    min-width:1050px;
+    min-width:950px;
+
 }
 
 
@@ -1134,6 +1219,7 @@ include "header.php";
     border-bottom:1px solid #eef1f5;
 
     white-space:nowrap;
+
 }
 
 
@@ -1148,12 +1234,14 @@ include "header.php";
     color:#374151;
 
     vertical-align:middle;
+
 }
 
 
 .viewer-unpaid-table tbody tr:hover {
 
     background:#fafbfc;
+
 }
 
 
@@ -1164,6 +1252,7 @@ include "header.php";
     font-weight:800;
 
     white-space:nowrap;
+
 }
 
 
@@ -1172,6 +1261,7 @@ include "header.php";
     font-weight:600;
 
     color:#273142 !important;
+
 }
 
 
@@ -1182,6 +1272,7 @@ include "header.php";
     text-align:center;
 
     color:#8993a1;
+
 }
 
 
@@ -1192,6 +1283,7 @@ include "header.php";
     margin-bottom:12px;
 
     color:#20b878;
+
 }
 
 
@@ -1212,6 +1304,7 @@ include "header.php";
     flex-wrap:wrap;
 
     background:#fafbfc;
+
 }
 
 
@@ -1220,6 +1313,7 @@ include "header.php";
     color:#697586;
 
     font-size:13px;
+
 }
 
 
@@ -1230,6 +1324,7 @@ include "header.php";
     font-size:20px;
 
     font-weight:800;
+
 }
 
 
@@ -1248,8 +1343,13 @@ include "header.php";
     font-weight:700;
 
     font-size:12px;
+
 }
 
+
+/* =========================================================
+   DASHBOARD HEADER FILTER
+========================================================= */
 
 .dashboard-header-filter {
 
@@ -1280,6 +1380,7 @@ include "header.php";
     cursor:pointer;
 
     transition:all .2s ease;
+
 }
 
 
@@ -1293,8 +1394,20 @@ include "header.php";
 
     box-shadow:
         0 4px 12px rgba(13,110,253,.18);
+
 }
 
+
+.dashboard-header-filter i {
+
+    font-size:13px;
+
+}
+
+
+/* =========================================================
+   DATE FILTER MODAL
+========================================================= */
 
 .dashboard-date-modal {
 
@@ -1306,6 +1419,7 @@ include "header.php";
 
     box-shadow:
         0 15px 45px rgba(0,0,0,.15);
+
 }
 
 
@@ -1316,12 +1430,14 @@ include "header.php";
     border-bottom:1px solid #eef1f5;
 
     background:#fff;
+
 }
 
 
 .dashboard-date-modal .modal-body {
 
     padding:22px;
+
 }
 
 
@@ -1332,6 +1448,7 @@ include "header.php";
     border-top:1px solid #eef1f5;
 
     background:#fafbfc;
+
 }
 
 
@@ -1344,6 +1461,7 @@ include "header.php";
     border-radius:12px;
 
     padding:18px;
+
 }
 
 
@@ -1352,6 +1470,7 @@ include "header.php";
     color:#374151;
 
     font-size:13px;
+
 }
 
 
@@ -1360,6 +1479,17 @@ include "header.php";
     border-radius:9px;
 
     border-color:#dfe4ea;
+
+}
+
+
+.date-filter-box .form-control:focus {
+
+    border-color:#86b7fe;
+
+    box-shadow:
+        0 0 0 .2rem rgba(13,110,253,.10);
+
 }
 
 
@@ -1380,6 +1510,7 @@ include "header.php";
     background:#fff;
 
     border:1px solid #e8ebef;
+
 }
 
 
@@ -1388,6 +1519,7 @@ include "header.php";
     color:#0d6efd;
 
     font-size:16px;
+
 }
 
 
@@ -1396,6 +1528,7 @@ include "header.php";
     color:#273142;
 
     font-size:13px;
+
 }
 
 
@@ -1404,7 +1537,9 @@ include "header.php";
     .viewer-dashboard-grid {
 
         grid-template-columns:1fr;
+
     }
+
 }
 
 
@@ -1413,12 +1548,14 @@ include "header.php";
     .viewer-unpaid-header {
 
         align-items:flex-start;
+
     }
 
 
     .dashboard-header-filter span {
 
         display:none;
+
     }
 
 
@@ -1427,7 +1564,9 @@ include "header.php";
         width:40px;
 
         padding:8px;
+
     }
+
 }
 
 </style>
@@ -1440,6 +1579,8 @@ include "header.php";
 <div class="viewer-dashboard-grid">
 
 
+    <!-- TOTAL SALES -->
+
     <div class="viewer-stat-card">
 
         <div class="viewer-stat-icon viewer-green">
@@ -1450,7 +1591,9 @@ include "header.php";
 
 
         <div class="viewer-label">
+
             Total Sales
+
         </div>
 
 
@@ -1483,6 +1626,8 @@ include "header.php";
     </div>
 
 
+    <!-- TOTAL PURCHASES -->
+
     <div class="viewer-stat-card">
 
         <div class="viewer-stat-icon viewer-orange">
@@ -1493,7 +1638,9 @@ include "header.php";
 
 
         <div class="viewer-label">
+
             Total Purchases
+
         </div>
 
 
@@ -1526,6 +1673,8 @@ include "header.php";
     </div>
 
 
+    <!-- OPERATING EXPENSES -->
+
     <div class="viewer-stat-card">
 
         <div class="viewer-stat-icon viewer-purple">
@@ -1536,7 +1685,9 @@ include "header.php";
 
 
         <div class="viewer-label">
+
             Operating Expenses
+
         </div>
 
 
@@ -1631,6 +1782,8 @@ include "header.php";
     </div>
 
 
+    <!-- SEARCH -->
+
     <form
         method="GET"
         action="index.php"
@@ -1685,7 +1838,7 @@ include "header.php";
                     $viewerSalesSearch
                 )?>"
                 class="form-control"
-                placeholder="Search customer, reference, description, notes, or branch..."
+                placeholder="Search customer, reference, description, or branch..."
                 autocomplete="off"
             >
 
@@ -1751,7 +1904,9 @@ include "header.php";
             <div>
 
                 <strong>
+
                     No unpaid sales found.
+
                 </strong>
 
             </div>
@@ -1792,9 +1947,9 @@ include "header.php";
 
                         <th>Description</th>
 
-                        <th>Notes</th>
+<th>Notes</th>
 
-                        <th>Status</th>
+<th>Status</th>
 
                         <th class="text-end">
                             Total Amount
@@ -1817,7 +1972,6 @@ include "header.php";
                 ): ?>
 
                     <tr>
-
 
                         <td>
 
@@ -1873,40 +2027,42 @@ include "header.php";
 
                         <td>
 
-                            <?=htmlspecialchars(
-                                $r['description']
-                                ?? '—'
-                            )?>
+    <?=htmlspecialchars(
+        $r['description']
+        ?? '—'
+    )?>
 
-                        </td>
-
-
-                        <td>
-
-                            <?=htmlspecialchars(
-                                $r['notes']
-                                ?? '—'
-                            )?>
-
-                        </td>
+</td>
 
 
-                        <td>
+<td>
 
-                            <span class="viewer-unpaid-badge">
+    <?=htmlspecialchars(
+        $r['notes']
+        ?? '—'
+    )?>
 
-                                UNPAID
+</td>
 
-                            </span>
 
-                        </td>
+<td>
+
+    <span class="viewer-unpaid-badge">
+
+        UNPAID
+
+    </span>
+
+</td>
 
 
                         <td class="text-end">
 
                             ₱<?=number_format(
                                 (float)(
-                                    $r['_computed_total']
+                                    $r[
+                                        '_computed_total'
+                                    ]
                                     ?? 0
                                 ),
                                 2
@@ -1921,7 +2077,9 @@ include "header.php";
 
                                 ₱<?=number_format(
                                     (float)(
-                                        $r['_computed_unpaid']
+                                        $r[
+                                            '_computed_unpaid'
+                                        ]
                                         ?? 0
                                     ),
                                     2
@@ -1930,7 +2088,6 @@ include "header.php";
                             </span>
 
                         </td>
-
 
                     </tr>
 
@@ -2001,9 +2158,14 @@ include "header.php";
 
 <style>
 
+/* =========================================================
+   DATE FILTER INSIDE NET MARGIN CARD
+========================================================= */
+
 .net-margin-filter-card {
 
     position:relative;
+
 }
 
 
@@ -2018,14 +2180,74 @@ include "header.php";
     gap:10px;
 
     margin-bottom:16px;
+
 }
 
 
 .net-margin-top .stat-icon {
 
     margin-bottom:0;
+
 }
 
+
+.dashboard-filter-small {
+
+    border:1px solid #dfe4ea;
+
+    background:#fff;
+
+    color:#0d6efd;
+
+    border-radius:9px;
+
+    min-height:38px;
+
+    padding:7px 11px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    gap:6px;
+
+    font-size:12px;
+
+    font-weight:700;
+
+    cursor:pointer;
+
+    transition:all .2s ease;
+
+}
+
+
+.dashboard-filter-small:hover {
+
+    background:#0d6efd;
+
+    color:#fff;
+
+    border-color:#0d6efd;
+
+    box-shadow:
+        0 4px 12px rgba(13,110,253,.18);
+
+}
+
+
+.dashboard-filter-small i {
+
+    font-size:12px;
+
+}
+
+
+/* =========================================================
+   DASHBOARD HEADER FILTER
+========================================================= */
 
 .dashboard-header-filter {
 
@@ -2056,6 +2278,7 @@ include "header.php";
     cursor:pointer;
 
     transition:all .2s ease;
+
 }
 
 
@@ -2069,8 +2292,20 @@ include "header.php";
 
     box-shadow:
         0 4px 12px rgba(13,110,253,.18);
+
 }
 
+
+.dashboard-header-filter i {
+
+    font-size:13px;
+
+}
+
+
+/* =========================================================
+   NET MARGIN DATE
+========================================================= */
 
 .net-margin-date {
 
@@ -2087,14 +2322,20 @@ include "header.php";
     font-size:11px;
 
     line-height:1.4;
+
 }
 
 
 .net-margin-date i {
 
     color:#0d6efd;
+
 }
 
+
+/* =========================================================
+   DATE FILTER MODAL
+========================================================= */
 
 .dashboard-date-modal {
 
@@ -2106,6 +2347,7 @@ include "header.php";
 
     box-shadow:
         0 15px 45px rgba(0,0,0,.15);
+
 }
 
 
@@ -2116,12 +2358,14 @@ include "header.php";
     border-bottom:1px solid #eef1f5;
 
     background:#fff;
+
 }
 
 
 .dashboard-date-modal .modal-body {
 
     padding:22px;
+
 }
 
 
@@ -2132,6 +2376,7 @@ include "header.php";
     border-top:1px solid #eef1f5;
 
     background:#fafbfc;
+
 }
 
 
@@ -2144,6 +2389,7 @@ include "header.php";
     border-radius:12px;
 
     padding:18px;
+
 }
 
 
@@ -2152,6 +2398,7 @@ include "header.php";
     color:#374151;
 
     font-size:13px;
+
 }
 
 
@@ -2160,6 +2407,7 @@ include "header.php";
     border-radius:9px;
 
     border-color:#dfe4ea;
+
 }
 
 
@@ -2169,6 +2417,7 @@ include "header.php";
 
     box-shadow:
         0 0 0 .2rem rgba(13,110,253,.10);
+
 }
 
 
@@ -2189,6 +2438,7 @@ include "header.php";
     background:#fff;
 
     border:1px solid #e8ebef;
+
 }
 
 
@@ -2197,6 +2447,7 @@ include "header.php";
     color:#0d6efd;
 
     font-size:16px;
+
 }
 
 
@@ -2205,6 +2456,7 @@ include "header.php";
     color:#273142;
 
     font-size:13px;
+
 }
 
 
@@ -2214,7 +2466,9 @@ include "header.php";
 
         grid-template-columns:
             repeat(2, minmax(0, 1fr));
+
     }
+
 }
 
 
@@ -2223,12 +2477,30 @@ include "header.php";
     .dashboard-grid {
 
         grid-template-columns:1fr;
+
+    }
+
+
+    .dashboard-filter-small span {
+
+        display:none;
+
+    }
+
+
+    .dashboard-filter-small {
+
+        width:38px;
+
+        padding:7px;
+
     }
 
 
     .dashboard-header-filter span {
 
         display:none;
+
     }
 
 
@@ -2237,20 +2509,20 @@ include "header.php";
         width:40px;
 
         padding:8px;
+
     }
+
 }
 
 </style>
 
 
-<!-- =======================================================
-     DASHBOARD CARDS
-======================================================= -->
-
 <div class="dashboard-grid">
 
 
-    <!-- TOTAL SALES -->
+    <!-- =================================================
+         TOTAL SALES
+    ================================================= -->
 
     <div class="stat-card">
 
@@ -2262,7 +2534,9 @@ include "header.php";
 
 
         <div class="stat-label">
+
             Total Sales
+
         </div>
 
 
@@ -2295,7 +2569,9 @@ include "header.php";
     </div>
 
 
-    <!-- TOTAL PURCHASES -->
+    <!-- =================================================
+         TOTAL PURCHASES
+    ================================================= -->
 
     <div class="stat-card">
 
@@ -2307,7 +2583,9 @@ include "header.php";
 
 
         <div class="stat-label">
+
             Total Purchases
+
         </div>
 
 
@@ -2340,7 +2618,9 @@ include "header.php";
     </div>
 
 
-    <!-- COGS -->
+    <!-- =================================================
+         COGS
+    ================================================= -->
 
     <div class="stat-card">
 
@@ -2352,7 +2632,9 @@ include "header.php";
 
 
         <div class="stat-label">
+
             Cost of Goods Sold
+
         </div>
 
 
@@ -2367,12 +2649,17 @@ include "header.php";
                     beginning_inventory,
                     0
                 )
+
                 FROM inventory
+
                 WHERE inventory_date <= ?
+
                 $branchFilter
+
                 ORDER BY
                     inventory_date DESC,
                     id DESC
+
                 LIMIT 1
                 ",
                 array_merge(
@@ -2389,12 +2676,17 @@ include "header.php";
                     ending_inventory,
                     0
                 )
+
                 FROM inventory
+
                 WHERE inventory_date <= ?
+
                 $branchFilter
+
                 ORDER BY
                     inventory_date DESC,
                     id DESC
+
                 LIMIT 1
                 ",
                 array_merge(
@@ -2413,6 +2705,7 @@ include "header.php";
             if ($cogs < 0) {
 
                 $cogs = 0;
+
             }
 
             ?>
@@ -2465,7 +2758,9 @@ include "header.php";
     ?>
 
 
-    <!-- GROSS PROFIT -->
+    <!-- =================================================
+         GROSS PROFIT
+    ================================================= -->
 
     <div class="stat-card">
 
@@ -2477,7 +2772,9 @@ include "header.php";
 
 
         <div class="stat-label">
+
             Gross Profit
+
         </div>
 
 
@@ -2495,7 +2792,9 @@ include "header.php";
 
 
         <div class="stat-foot">
+
             Sales − COGS
+
         </div>
 
 
@@ -2511,7 +2810,9 @@ include "header.php";
     </div>
 
 
-    <!-- OPERATING EXPENSES -->
+    <!-- =================================================
+         OPERATING EXPENSES
+    ================================================= -->
 
     <div class="stat-card">
 
@@ -2523,7 +2824,9 @@ include "header.php";
 
 
         <div class="stat-label">
+
             Operating Expenses
+
         </div>
 
 
@@ -2556,7 +2859,9 @@ include "header.php";
     </div>
 
 
-    <!-- NET INCOME -->
+    <!-- =================================================
+         NET INCOME
+    ================================================= -->
 
     <div class="stat-card">
 
@@ -2568,7 +2873,9 @@ include "header.php";
 
 
         <div class="stat-label">
+
             Net Income
+
         </div>
 
 
@@ -2586,7 +2893,9 @@ include "header.php";
 
 
         <div class="stat-foot">
+
             Gross Profit − Expenses
+
         </div>
 
 
@@ -2602,7 +2911,9 @@ include "header.php";
     </div>
 
 
-    <!-- GROSS MARGIN -->
+    <!-- =================================================
+         GROSS MARGIN
+    ================================================= -->
 
     <div class="stat-card">
 
@@ -2614,7 +2925,9 @@ include "header.php";
 
 
         <div class="stat-label">
+
             Gross Profit Margin
+
         </div>
 
 
@@ -2629,18 +2942,23 @@ include "header.php";
 
 
         <div class="stat-foot">
+
             Gross Profit ÷ Sales
+
         </div>
 
     </div>
 
 
-    <!-- NET PROFIT MARGIN -->
+    <!-- =================================================
+         NET PROFIT MARGIN + FILTER
+    ================================================= -->
 
     <div class="stat-card net-margin-filter-card">
 
 
         <div class="net-margin-top">
+
 
             <div class="stat-icon icon-blue">
 
@@ -2648,11 +2966,14 @@ include "header.php";
 
             </div>
 
+
         </div>
 
 
         <div class="stat-label">
+
             Net Profit Margin
+
         </div>
 
 
@@ -2667,7 +2988,9 @@ include "header.php";
 
 
         <div class="stat-foot">
+
             Net Income ÷ Sales
+
         </div>
 
 
@@ -3037,11 +3360,11 @@ $sql = "
 
             +
 
-            COALESCE(\"service_charge\", 0)
+            COALESCE(service_charge, 0)
 
             -
 
-            COALESCE(\"discount\", 0)
+            COALESCE(discount, 0)
 
         ) AS total
 
@@ -3061,6 +3384,7 @@ if ($branch > 0) {
         AND branch_id = ?
 
     ";
+
 }
 
 
@@ -3098,6 +3422,7 @@ foreach (
         $row['d']
     ] =
         (float)$row['total'];
+
 }
 
 
@@ -3131,6 +3456,7 @@ if ($branch > 0) {
         AND branch_id = ?
 
     ";
+
 }
 
 
@@ -3168,6 +3494,7 @@ foreach (
         $row['d']
     ] =
         (float)$row['total'];
+
 }
 
 
@@ -3201,6 +3528,7 @@ if ($branch > 0) {
         AND branch_id = ?
 
     ";
+
 }
 
 
@@ -3238,6 +3566,7 @@ foreach (
         $row['d']
     ] =
         (float)$row['total'];
+
 }
 
 
@@ -3313,6 +3642,7 @@ while (
     $chartDate->modify(
         '+1 day'
     );
+
 }
 
 ?>
@@ -3433,6 +3763,7 @@ if ($branch > 0) {
         $filterStart,
         $filterEnd
     ]);
+
 }
 
 
@@ -3690,6 +4021,8 @@ document.addEventListener(
                     datasets:[
 
 
+                        /* SALES */
+
                         {
 
                             label:'Sales',
@@ -3716,6 +4049,8 @@ document.addEventListener(
                         },
 
 
+                        /* PURCHASES */
+
                         {
 
                             label:'Purchases',
@@ -3741,6 +4076,8 @@ document.addEventListener(
 
                         },
 
+
+                        /* EXPENSES */
 
                         {
 
@@ -3923,3 +4260,4 @@ document.addEventListener(
 include "footer.php";
 
 ?>
+```
