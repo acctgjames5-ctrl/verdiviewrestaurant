@@ -424,15 +424,15 @@ $sqlViewerUnpaid = "
 
         s.customer,
 
-        s.Pax,
+        s.pax,
 
-        s.Discount,
+        s.discount,
 
         s.description,
 
         s.amount,
 
-        s.Service_charge,
+        s.service_charge,
 
         s.remarks,
 
@@ -578,14 +578,14 @@ try {
                 +
 
                 (float)(
-                    $row['Service_charge']
+                    $row['service_charge']
                     ?? 0
                 )
 
                 -
 
                 (float)(
-                    $row['Discount']
+                    $row['discount']
                     ?? 0
                 )
             );
