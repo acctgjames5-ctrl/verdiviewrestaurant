@@ -227,8 +227,8 @@ $totalSales = scalarQuery(
     SELECT COALESCE(
         SUM(
             COALESCE(amount, 0)
-            + COALESCE(\"Service_charge\", 0)
-            - COALESCE(\"Discount\", 0)
+            + COALESCE(\"service_charge\", 0)
+            - COALESCE(\"discount\", 0)
         ),
         0
     )
@@ -390,15 +390,15 @@ $sqlViewerUnpaid = "
 
         s.customer,
 
-        s.\"Pax\" AS pax,
+        s.\"pax\" AS pax,
 
-        s.\"Discount\" AS discount,
+        s.\"discount\" AS discount,
 
         s.description,
 
         s.amount,
 
-        s.\"Service_charge\" AS service_charge,
+        s.\"service_charge\" AS service_charge,
 
         s.remarks,
 
@@ -3037,11 +3037,11 @@ $sql = "
 
             +
 
-            COALESCE(\"Service_charge\", 0)
+            COALESCE(\"service_charge\", 0)
 
             -
 
-            COALESCE(\"Discount\", 0)
+            COALESCE(\"discount\", 0)
 
         ) AS total
 
@@ -3574,14 +3574,14 @@ $recentSales =
                                     +
 
                                     (float)(
-                                        $r['Service_charge']
+                                        $r['service_charge']
                                         ?? 0
                                     )
 
                                     -
 
                                     (float)(
-                                        $r['Discount']
+                                        $r['discount']
                                         ?? 0
                                     )
 
