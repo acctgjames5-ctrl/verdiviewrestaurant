@@ -431,16 +431,16 @@ if (
             );
 
 
-        $quickDiscount =
+        $quickdiscount =
             (float)(
-                $quickSale['Discount']
+                $quickSale['discount']
                 ?? 0
             );
 
 
         $quickSC =
             (float)(
-                $quickSale['Service_charge']
+                $quickSale['service_charge']
                 ?? 0
             );
 
@@ -449,7 +449,7 @@ if (
             calculateSaleTotal(
                 $quickAmount,
                 $quickSC,
-                $quickDiscount
+                $quickdiscount
             );
 
 
@@ -1169,11 +1169,11 @@ elseif (
                                     sale_date,
                                     reference_no,
                                     customer,
-                                    Pax,
-                                    Discount,
+                                    pax,
+                                    discount,
                                     description,
                                     amount,
-                                    Service_charge,
+                                    service_charge,
                                     remarks,
                                     notes,
                                     accounts_receivable
@@ -1408,10 +1408,10 @@ elseif (
 
 
                                 /*
-                                 * PAX
+                                 * pax
                                  */
 
-                                $cleanPax =
+                                $cleanpax =
                                     str_replace(
                                         [',', ' '],
                                         '',
@@ -1420,14 +1420,14 @@ elseif (
 
 
                                 if (
-                                    $cleanPax === ''
+                                    $cleanpax === ''
                                 ) {
 
                                     $pax = 0;
 
                                 } elseif (
                                     !is_numeric(
-                                        $cleanPax
+                                        $cleanpax
                                     )
                                 ) {
 
@@ -1437,7 +1437,7 @@ elseif (
                                     $errors[] =
                                         "Row " .
                                         ($rowNumber + 1) .
-                                        ": Invalid Pax.";
+                                        ": Invalid pax.";
 
 
                                     continue;
@@ -1447,17 +1447,17 @@ elseif (
                                     $pax =
                                         max(
                                             0,
-                                            (float)$cleanPax
+                                            (float)$cleanpax
                                         );
 
                                 }
 
 
                                 /*
-                                 * DISCOUNT
+                                 * discount
                                  */
 
-                                $cleanDiscount =
+                                $cleandiscount =
                                     str_replace(
                                         [
                                             '₱',
@@ -1471,14 +1471,14 @@ elseif (
 
 
                                 if (
-                                    $cleanDiscount === ''
+                                    $cleandiscount === ''
                                 ) {
 
                                     $discount = 0;
 
                                 } elseif (
                                     !is_numeric(
-                                        $cleanDiscount
+                                        $cleandiscount
                                     )
                                 ) {
 
@@ -1488,7 +1488,7 @@ elseif (
                                     $errors[] =
                                         "Row " .
                                         ($rowNumber + 1) .
-                                        ": Invalid Discount.";
+                                        ": Invalid discount.";
 
 
                                     continue;
@@ -1498,7 +1498,7 @@ elseif (
                                     $discount =
                                         max(
                                             0,
-                                            (float)$cleanDiscount
+                                            (float)$cleandiscount
                                         );
 
                                 }
@@ -1848,7 +1848,7 @@ elseif (
         max(
             0,
             (float)(
-                $_POST['Pax']
+                $_POST['pax']
                 ?? 0
             )
         );
@@ -1858,7 +1858,7 @@ elseif (
         max(
             0,
             (float)(
-                $_POST['Discount']
+                $_POST['discount']
                 ?? 0
             )
         );
@@ -1874,11 +1874,11 @@ elseif (
         );
 
 
-    $Service_charge =
+    $service_charge =
         max(
             0,
             (float)(
-                $_POST['Service_charge']
+                $_POST['service_charge']
                 ?? 0
             )
         );
@@ -1978,7 +1978,7 @@ elseif (
     $saleTotal =
         calculateSaleTotal(
             $amount,
-            $Service_charge,
+            $service_charge,
             $discount
         );
 
@@ -2082,11 +2082,11 @@ elseif (
                     sale_date = ?,
                     reference_no = ?,
                     customer = ?,
-                    Pax = ?,
-                    Discount = ?,
+                    pax = ?,
+                    discount = ?,
                     description = ?,
                     amount = ?,
-                    Service_charge = ?,
+                    service_charge = ?,
                     notes = ?,
                     payment_cash = ?,
                     payment_gcash = ?,
@@ -2117,7 +2117,7 @@ elseif (
 
             $amount,
 
-            $Service_charge,
+            $service_charge,
 
             $notes,
 
@@ -2151,11 +2151,11 @@ elseif (
                     sale_date,
                     reference_no,
                     customer,
-                    Pax,
-                    Discount,
+                    pax,
+                    discount,
                     description,
                     amount,
-                    Service_charge,
+                    service_charge,
                     notes,
                     payment_cash,
                     payment_gcash,
@@ -2187,7 +2187,7 @@ elseif (
 
             $amount,
 
-            $Service_charge,
+            $service_charge,
 
             $notes,
 
@@ -2427,7 +2427,7 @@ if ($sc === 'WITH_SC') {
 
     $where[] = "
         COALESCE(
-            s.Service_charge,
+            s.service_charge,
             0
         ) > 0
     ";
@@ -2438,7 +2438,7 @@ if ($sc === 'WITH_SC') {
 
     $where[] = "
         COALESCE(
-            s.Service_charge,
+            s.service_charge,
             0
         ) <= 0
     ";
@@ -2497,7 +2497,7 @@ $rows =
 ========================================================= */
 
 $totalSales = 0;
-$totalDiscount = 0;
+$totaldiscount = 0;
 $totalServiceCharge = 0;
 $totalAccountsReceivable = 0;
 
@@ -2529,16 +2529,16 @@ foreach (
         );
 
 
-    $rowDiscount =
+    $rowdiscount =
         (float)(
-            $r['Discount']
+            $r['discount']
             ?? 0
         );
 
 
     $rowServiceCharge =
         (float)(
-            $r['Service_charge']
+            $r['service_charge']
             ?? 0
         );
 
@@ -2547,7 +2547,7 @@ foreach (
         calculateSaleTotal(
             $rowAmount,
             $rowServiceCharge,
-            $rowDiscount
+            $rowdiscount
         );
 
 
@@ -2575,8 +2575,8 @@ foreach (
         $rowAmount;
 
 
-    $totalDiscount +=
-        $rowDiscount;
+    $totaldiscount +=
+        $rowdiscount;
 
 
     $totalServiceCharge +=
@@ -2652,7 +2652,7 @@ foreach (
 $grandTotal =
     $totalPaid
     - $totalServiceCharge
-    + $totalDiscount
+    + $totaldiscount
     + $totalUnpaid;
 
 
@@ -2687,16 +2687,16 @@ if ($edit) {
         );
 
 
-    $editDiscount =
+    $editdiscount =
         (float)(
-            $edit['Discount']
+            $edit['discount']
             ?? 0
         );
 
 
     $editSC =
         (float)(
-            $edit['Service_charge']
+            $edit['service_charge']
             ?? 0
         );
 
@@ -2705,7 +2705,7 @@ if ($edit) {
         calculateSaleTotal(
             $editAmount,
             $editSC,
-            $editDiscount
+            $editdiscount
         );
 
 
@@ -4200,12 +4200,12 @@ Upload CSV
 </div>
 
 
-<!-- PAX -->
+<!-- pax -->
 
 <div class="col-md-3">
 
 <label class="sales-label">
-    Pax
+    pax
 </label>
 
 
@@ -4213,22 +4213,22 @@ Upload CSV
     type="number"
     step="0.01"
     min="0"
-    name="Pax"
+    name="pax"
     class="form-control sales-input"
     value="<?=htmlspecialchars(
-        $edit['Pax'] ?? '0'
+        $edit['pax'] ?? '0'
     )?>"
 >
 
 </div>
 
 
-<!-- DISCOUNT -->
+<!-- discount -->
 
 <div class="col-md-3">
 
 <label class="sales-label">
-    Discount
+    discount
 </label>
 
 
@@ -4244,11 +4244,11 @@ Upload CSV
     type="number"
     step="0.01"
     min="0"
-    name="Discount"
-    id="Discount"
+    name="discount"
+    id="discount"
     class="form-control sales-input"
     value="<?=htmlspecialchars(
-        $edit['Discount'] ?? '0'
+        $edit['discount'] ?? '0'
     )?>"
 >
 
@@ -4315,11 +4315,11 @@ Upload CSV
     type="number"
     step="0.01"
     min="0"
-    name="Service_charge"
-    id="Service_charge"
+    name="service_charge"
+    id="service_charge"
     class="form-control sales-input"
     value="<?=htmlspecialchars(
-        $edit['Service_charge'] ?? '0'
+        $edit['service_charge'] ?? '0'
     )?>"
 >
 
@@ -5224,14 +5224,14 @@ Sales Records
 <div class="total-box">
 
 <span class="total-label">
-    DISCOUNT
+    discount
 </span>
 
 
 <span class="total-discount">
 
 ₱<?=number_format(
-    $totalDiscount,
+    $totaldiscount,
     2
 )?>
 
@@ -5333,7 +5333,7 @@ Sales Records
 
 
 <th class="text-end">
-    Pax
+    pax
 </th>
 
 
@@ -5353,7 +5353,7 @@ Sales Records
 
 
 <th class="text-end">
-    Discount
+    discount
 </th>
 
 
@@ -5419,23 +5419,23 @@ $rowAmount =
     );
 
 
-$rowPax =
+$rowpax =
     (float)(
-        $r['Pax']
+        $r['pax']
         ?? 0
     );
 
 
-$rowDiscount =
+$rowdiscount =
     (float)(
-        $r['Discount']
+        $r['discount']
         ?? 0
     );
 
 
 $rowServiceCharge =
     (float)(
-        $r['Service_charge']
+        $r['service_charge']
         ?? 0
     );
 
@@ -5444,7 +5444,7 @@ $rowTotal =
     calculateSaleTotal(
         $rowAmount,
         $rowServiceCharge,
-        $rowDiscount
+        $rowdiscount
     );
 
 
@@ -5540,12 +5540,12 @@ $rowNotes =
 </td>
 
 
-<!-- PAX -->
+<!-- pax -->
 
 <td class="text-end">
 
 <?=number_format(
-    $rowPax,
+    $rowpax,
     2
 )?>
 
@@ -5689,12 +5689,12 @@ NO SC
 </td>
 
 
-<!-- DISCOUNT -->
+<!-- discount -->
 
 <td class="text-end sale-discount">
 
 ₱<?=number_format(
-    $rowDiscount,
+    $rowdiscount,
     2
 )?>
 
@@ -6801,13 +6801,13 @@ document.addEventListener(
 
     const discount =
         document.getElementById(
-            'Discount'
+            'discount'
         );
 
 
     const serviceCharge =
         document.getElementById(
-            'Service_charge'
+            'service_charge'
         );
 
 
@@ -6919,7 +6919,7 @@ document.addEventListener(
                 valueOf(amount);
 
 
-            const saleDiscount =
+            const salediscount =
                 valueOf(discount);
 
 
@@ -6948,7 +6948,7 @@ document.addEventListener(
                     0,
                     saleAmount +
                     saleSC -
-                    saleDiscount
+                    salediscount
                 );
 
 
