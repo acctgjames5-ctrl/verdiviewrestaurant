@@ -1,4 +1,3 @@
-```php
 <?php
 
 /*
@@ -269,4 +268,3 @@ $GLOBALS['currentUserRole'] = $currentUserRole;
 $GLOBALS['normalizedRole'] = $normalizedRole;
 
 $GLOBALS['isViewer'] = $isViewer;
-```
