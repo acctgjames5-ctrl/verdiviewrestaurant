@@ -1,42 +1,68 @@
 <?php
+/*
+|--------------------------------------------------------------------------
+| AUTHENTICATION GUARD
+|--------------------------------------------------------------------------
+| Lahat ng protected pages dapat dumaan dito.
+|
+| VIEWER:
+| - Dashboard / index.php lang ang puwedeng buksan
+| - Lahat ng ibang protected pages ay blocked
+|--------------------------------------------------------------------------
+*/
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 
 /* =========================================================
-   AUTHENTICATION + ACCESS CONTROL
-   Vianchris Sales & Expenses System
+   CHECK LOGIN
 ========================================================= */
 
+if (
+    empty($_SESSION['logged_in']) ||
+    $_SESSION['logged_in'] !== true
+) {
 
-/* =========================================================
-   START SESSION SAFELY
-========================================================= */
-
-if (session_status() !== PHP_SESSION_ACTIVE) {
-
-    if (!headers_sent()) {
-        session_start();
-    }
+    header("Location: login.php");
+    exit;
 
 }
 
 
 /* =========================================================
-   CONFIG
+   PREVENT CACHE
 ========================================================= */
 
-require_once __DIR__ . '/config.php';
-
-
-/* =========================================================
-   CURRENT FILE
-========================================================= */
-
-$currentFile = strtolower(
-    basename($_SERVER['PHP_SELF'] ?? '')
+header(
+    "Cache-Control: no-store, no-cache, must-revalidate, max-age=0"
 );
 
+header(
+    "Cache-Control: post-check=0, pre-check=0",
+    false
+);
+
+header("Pragma: no-cache");
+
+header("Expires: 0");
+
 
 /* =========================================================
-   LOGIN CHECK
+   GET USER ROLE
+========================================================= */
+
+$currentUserRole = trim((string)(
+    $_SESSION['role']
+    ?? $_SESSION['user_role']
+    ?? $_SESSION['position']
+    ?? ''
+));
+
+
+/* =========================================================
+   USER ID
 ========================================================= */
 
 $userId = (int)(
@@ -46,119 +72,115 @@ $userId = (int)(
 );
 
 
-/*
- * If there is no logged-in user,
- * send them to login page.
- */
-
-if ($userId <= 0) {
-
-    if (!headers_sent()) {
-
-        header(
-            'Location: login.php'
-        );
-
-        exit;
-
-    }
-
-    exit;
-
-}
-
-
 /* =========================================================
-   GET ROLE FROM SESSION
+   DATABASE ROLE CHECK
+=========================================================
+   Mas reliable ito kaysa session lamang.
+
+   Kung available ang config.php, kukunin natin ang
+   actual role mula sa database.
 ========================================================= */
 
-$currentUserRole = trim(
-    (string)(
-        $_SESSION['role']
-        ?? $_SESSION['user_role']
-        ?? $_SESSION['position']
-        ?? ''
-    )
-);
+if ($userId > 0) {
 
+    try {
 
-/* =========================================================
-   GET USER DATA FROM DATABASE
-========================================================= */
-
-$loggedUser = null;
-
-try {
-
-    /*
-     * PostgreSQL / MySQL compatible quoted table name
-     *
-     * The system currently uses UserId as the user ID.
-     */
-
-    $stmtUser = $pdo->prepare("
-        SELECT *
-        FROM `user`
-        WHERE UserId = ?
-        LIMIT 1
-    ");
-
-    $stmtUser->execute([
-        $userId
-    ]);
-
-    $loggedUser = $stmtUser->fetch(
-        PDO::FETCH_ASSOC
-    );
-
-} catch (Throwable $e) {
-
-    /*
-     * If database lookup fails,
-     * continue using the session role.
-     */
-
-    $loggedUser = null;
-
-}
-
-
-/* =========================================================
-   SYNCHRONIZE ROLE FROM DATABASE
-========================================================= */
-
-if ($loggedUser) {
-
-    $possibleRoleFields = [
-        'role',
-        'Role',
-        'user_role',
-        'position',
-        'Position',
-        'job_title',
-        'type'
-    ];
-
-
-    foreach ($possibleRoleFields as $field) {
+        /*
+         * Kung hindi pa loaded ang PDO,
+         * subukan i-load ang config.php.
+         */
 
         if (
-            isset($loggedUser[$field]) &&
-            trim(
-                (string)$loggedUser[$field]
-            ) !== ''
+            !isset($pdo) ||
+            !($pdo instanceof PDO)
         ) {
 
-            $currentUserRole = trim(
-                (string)$loggedUser[$field]
-            );
+            $configFile = __DIR__ . "/config.php";
 
-            $_SESSION['role'] =
-                $currentUserRole;
+            if (file_exists($configFile)) {
 
-            break;
+                require_once $configFile;
+
+            }
 
         }
+
+
+        if (
+            isset($pdo) &&
+            $pdo instanceof PDO
+        ) {
+
+            $stmtAuthUser = $pdo->prepare("
+                SELECT *
+                FROM `user`
+                WHERE UserId = ?
+                LIMIT 1
+            ");
+
+            $stmtAuthUser->execute([
+                $userId
+            ]);
+
+            $authUser = $stmtAuthUser->fetch(
+                PDO::FETCH_ASSOC
+            );
+
+
+            if ($authUser) {
+
+                $possibleRoleFields = [
+                    'role',
+                    'Role',
+                    'user_role',
+                    'position',
+                    'Position',
+                    'job_title',
+                    'type'
+                ];
+
+
+                foreach (
+                    $possibleRoleFields
+                    as $field
+                ) {
+
+                    if (
+                        isset($authUser[$field]) &&
+                        trim(
+                            (string)$authUser[$field]
+                        ) !== ''
+                    ) {
+
+                        $currentUserRole =
+                            trim(
+                                (string)$authUser[$field]
+                            );
+
+                        /*
+                         * Update session para consistent
+                         * ang role sa buong system.
+                         */
+
+                        $_SESSION['role'] =
+                            $currentUserRole;
+
+                        break;
+
+                    }
+
+                }
+
+            }
+
+        }
+
+    } catch (Throwable $e) {
+
+        /*
+         * Kapag may database issue,
+         * gamitin ang session role.
+         */
 
     }
 
@@ -169,11 +191,12 @@ if ($loggedUser) {
    NORMALIZE ROLE
 ========================================================= */
 
-$normalizedRole = strtolower(
-    trim(
-        (string)$currentUserRole
-    )
-);
+$normalizedRole =
+    strtolower(
+        trim(
+            (string)$currentUserRole
+        )
+    );
 
 
 /* =========================================================
@@ -192,176 +215,58 @@ $isViewer = in_array(
 
 
 /* =========================================================
-   STORE ACCESS VARIABLES
+   SERVER-SIDE VIEWER RESTRICTION
+=========================================================
+   Viewer:
+   - index.php = ALLOWED
+   - dashboard.php = ALLOWED
+   - ibang protected pages = BLOCKED
 ========================================================= */
 
-$_SESSION['is_viewer'] =
-    $isViewer;
+if ($isViewer) {
+
+    $currentProtectedFile =
+        strtolower(
+            basename(
+                $_SERVER['PHP_SELF'] ?? ''
+            )
+        );
 
 
-/* =========================================================
-   VIEWER ALLOWED PAGES
-========================================================= */
-
-/*
- * Viewer is allowed ONLY to access Dashboard.
- */
-
-$viewerAllowedPages = [
-    'index.php',
-    'dashboard.php'
-];
+    $viewerAllowedPages = [
+        'index.php',
+        'dashboard.php'
+    ];
 
 
-/* =========================================================
-   VIEWER BLOCK
-========================================================= */
-
-if (
-    $isViewer &&
-    !in_array(
-        $currentFile,
-        $viewerAllowedPages,
-        true
-    )
-) {
-
-    /*
-     * Viewer attempted to access:
-     *
-     * sales.php
-     * expenses.php
-     * purchases.php
-     * inventory.php
-     * bank_reconciliation.php
-     * reports.php
-     *
-     * Send them back to Dashboard.
-     */
-
-    $branchId = (int)(
-        $_SESSION['branch_id'] ?? 0
-    );
-
-
-    $dashboardUrl = 'index.php';
-
-
-    if ($branchId > 0) {
-
-        $dashboardUrl .=
-            '?branch=' . $branchId;
-
-    }
-
-
-    if (!headers_sent()) {
+    if (
+        !in_array(
+            $currentProtectedFile,
+            $viewerAllowedPages,
+            true
+        )
+    ) {
 
         header(
-            'Location: ' . $dashboardUrl
+            "Location: index.php"
         );
 
         exit;
 
     }
 
-    exit;
-
 }
 
 
 /* =========================================================
-   ROLE VARIABLES AVAILABLE TO OTHER PAGES
+   OPTIONAL GLOBAL VARIABLES
 ========================================================= */
 
-$currentUserId = $userId;
+$GLOBALS['currentUserRole'] =
+    $currentUserRole;
 
-$currentUserRole = trim(
-    (string)$currentUserRole
-);
+$GLOBALS['normalizedRole'] =
+    $normalizedRole;
 
-
-/* =========================================================
-   OPTIONAL HELPER FUNCTIONS
-========================================================= */
-
-/*
- * Check whether current user is Viewer.
- */
-
-function isViewerUser(): bool
-{
-    return !empty(
-        $_SESSION['is_viewer']
-    );
-}
-
-
-/*
- * Require logged-in user.
- */
-
-function requireLogin(): void
-{
-    $userId = (int)(
-        $_SESSION['user_id']
-        ?? $_SESSION['id']
-        ?? 0
-    );
-
-    if ($userId <= 0) {
-
-        if (!headers_sent()) {
-
-            header(
-                'Location: login.php'
-            );
-
-            exit;
-
-        }
-
-        exit;
-
-    }
-}
-
-
-/*
- * Require non-viewer user.
- */
-
-function requireNonViewer(): void
-{
-    if (isViewerUser()) {
-
-        $branchId = (int)(
-            $_SESSION['branch_id'] ?? 0
-        );
-
-
-        $url = 'index.php';
-
-
-        if ($branchId > 0) {
-
-            $url .=
-                '?branch=' . $branchId;
-
-        }
-
-
-        if (!headers_sent()) {
-
-            header(
-                'Location: ' . $url
-            );
-
-            exit;
-
-        }
-
-        exit;
-
-    }
-}
+$GLOBALS['isViewer'] =
+    $isViewer;
