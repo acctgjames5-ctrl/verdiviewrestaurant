@@ -1,18 +1,60 @@
+```php
 <?php
 /*
 |--------------------------------------------------------------------------
-| AUTHENTICATION GUARD
+| AUTHENTICATION + ROLE ACCESS CONTROL
 |--------------------------------------------------------------------------
-| Lahat ng protected pages dapat dumaan dito.
+| Ilagay ito sa lahat ng PROTECTED pages:
 |
-| VIEWER:
-| - Dashboard / index.php lang ang puwedeng buksan
-| - Lahat ng ibang protected pages ay blocked
+| require_once "auth.php";
+|
+| RULES:
+| - Hindi naka-login  → login.php
+| - VIEWER            → Dashboard lamang
+| - NON-VIEWER        → normal access
+|
+| IMPORTANT:
+| Server-side restriction ito.
+| Kahit direktang i-type ng Viewer ang:
+| sales.php
+| expenses.php
+| purchases.php
+| inventory.php
+| bank_reconciliation.php
+| reports.php
+|
+| automatic siyang ibabalik sa index.php.
 |--------------------------------------------------------------------------
 */
 
-if (session_status() === PHP_SESSION_NONE) {
+
+/* =========================================================
+   SESSION
+========================================================= */
+
+if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
+}
+
+
+/* =========================================================
+   PREVENT CACHE
+========================================================= */
+
+if (!headers_sent()) {
+
+    header(
+        "Cache-Control: no-store, no-cache, must-revalidate, max-age=0"
+    );
+
+    header(
+        "Cache-Control: post-check=0, pre-check=0",
+        false
+    );
+
+    header("Pragma: no-cache");
+    header("Expires: 0");
+
 }
 
 
@@ -25,40 +67,17 @@ if (
     $_SESSION['logged_in'] !== true
 ) {
 
-    header("Location: login.php");
+    if (!headers_sent()) {
+
+        header(
+            "Location: login.php"
+        );
+
+    }
+
     exit;
 
 }
-
-
-/* =========================================================
-   PREVENT CACHE
-========================================================= */
-
-header(
-    "Cache-Control: no-store, no-cache, must-revalidate, max-age=0"
-);
-
-header(
-    "Cache-Control: post-check=0, pre-check=0",
-    false
-);
-
-header("Pragma: no-cache");
-
-header("Expires: 0");
-
-
-/* =========================================================
-   GET USER ROLE
-========================================================= */
-
-$currentUserRole = trim((string)(
-    $_SESSION['role']
-    ?? $_SESSION['user_role']
-    ?? $_SESSION['position']
-    ?? ''
-));
 
 
 /* =========================================================
@@ -73,101 +92,116 @@ $userId = (int)(
 
 
 /* =========================================================
-   DATABASE ROLE CHECK
-=========================================================
-   Mas reliable ito kaysa session lamang.
-
-   Kung available ang config.php, kukunin natin ang
-   actual role mula sa database.
+   SESSION ROLE
 ========================================================= */
 
-if ($userId > 0) {
+$currentUserRole = trim(
+    (string)(
+        $_SESSION['role']
+        ?? $_SESSION['user_role']
+        ?? $_SESSION['position']
+        ?? ''
+    )
+);
+
+
+/* =========================================================
+   LOAD DATABASE CONNECTION
+========================================================= */
+
+if (
+    !isset($pdo) ||
+    !($pdo instanceof PDO)
+) {
+
+    $configFile = __DIR__ . "/config.php";
+
+    if (file_exists($configFile)) {
+
+        require_once $configFile;
+
+    }
+
+}
+
+
+/* =========================================================
+   GET ACTUAL USER ROLE FROM DATABASE
+=========================================================
+   Database role ang priority.
+   Mas safe ito kaysa puro session lang.
+========================================================= */
+
+if (
+    $userId > 0 &&
+    isset($pdo) &&
+    $pdo instanceof PDO
+) {
 
     try {
 
-        /*
-         * Kung hindi pa loaded ang PDO,
-         * subukan i-load ang config.php.
-         */
+        $stmtAuthUser = $pdo->prepare("
+            SELECT *
+            FROM `user`
+            WHERE UserId = ?
+            LIMIT 1
+        ");
 
-        if (
-            !isset($pdo) ||
-            !($pdo instanceof PDO)
-        ) {
+        $stmtAuthUser->execute([
+            $userId
+        ]);
 
-            $configFile = __DIR__ . "/config.php";
-
-            if (file_exists($configFile)) {
-
-                require_once $configFile;
-
-            }
-
-        }
+        $authUser = $stmtAuthUser->fetch(
+            PDO::FETCH_ASSOC
+        );
 
 
-        if (
-            isset($pdo) &&
-            $pdo instanceof PDO
-        ) {
+        if ($authUser) {
 
-            $stmtAuthUser = $pdo->prepare("
-                SELECT *
-                FROM `user`
-                WHERE UserId = ?
-                LIMIT 1
-            ");
+            /*
+             * Possible role column names.
+             */
 
-            $stmtAuthUser->execute([
-                $userId
-            ]);
+            $possibleRoleFields = [
 
-            $authUser = $stmtAuthUser->fetch(
-                PDO::FETCH_ASSOC
-            );
+                'role',
+                'Role',
+                'user_role',
+                'position',
+                'Position',
+                'job_title',
+                'type'
+
+            ];
 
 
-            if ($authUser) {
+            foreach (
+                $possibleRoleFields as $field
+            ) {
 
-                $possibleRoleFields = [
-                    'role',
-                    'Role',
-                    'user_role',
-                    'position',
-                    'Position',
-                    'job_title',
-                    'type'
-                ];
-
-
-                foreach (
-                    $possibleRoleFields
-                    as $field
+                if (
+                    array_key_exists(
+                        $field,
+                        $authUser
+                    )
+                    &&
+                    trim(
+                        (string)$authUser[$field]
+                    ) !== ''
                 ) {
 
-                    if (
-                        isset($authUser[$field]) &&
-                        trim(
-                            (string)$authUser[$field]
-                        ) !== ''
-                    ) {
+                    $currentUserRole = trim(
+                        (string)$authUser[$field]
+                    );
 
-                        $currentUserRole =
-                            trim(
-                                (string)$authUser[$field]
-                            );
+                    /*
+                     * Keep session synchronized.
+                     */
 
-                        /*
-                         * Update session para consistent
-                         * ang role sa buong system.
-                         */
+                    $_SESSION['role'] =
+                        $currentUserRole;
 
-                        $_SESSION['role'] =
-                            $currentUserRole;
-
-                        break;
-
-                    }
+                    break;
 
                 }
 
@@ -178,8 +212,10 @@ if ($userId > 0) {
     } catch (Throwable $e) {
 
         /*
-         * Kapag may database issue,
+         * Kung may DB error,
          * gamitin ang session role.
+         *
+         * Huwag i-break ang page dito.
          */
 
     }
@@ -191,12 +227,11 @@ if ($userId > 0) {
    NORMALIZE ROLE
 ========================================================= */
 
-$normalizedRole =
-    strtolower(
-        trim(
-            (string)$currentUserRole
-        )
-    );
+$normalizedRole = strtolower(
+    trim(
+        (string)$currentUserRole
+    )
+);
 
 
 /* =========================================================
@@ -215,29 +250,35 @@ $isViewer = in_array(
 
 
 /* =========================================================
-   SERVER-SIDE VIEWER RESTRICTION
+   CURRENT PAGE
+========================================================= */
+
+$currentProtectedFile = strtolower(
+    basename(
+        $_SERVER['PHP_SELF'] ?? ''
+    )
+);
+
+
+/* =========================================================
+   VIEWER ALLOWED PAGES
 =========================================================
-   Viewer:
-   - index.php = ALLOWED
-   - dashboard.php = ALLOWED
-   - ibang protected pages = BLOCKED
+   Dashboard lamang.
+========================================================= */
+
+$viewerAllowedPages = [
+
+    'index.php',
+    'dashboard.php'
+
+];
+
+
+/* =========================================================
+   VIEWER SERVER-SIDE BLOCK
 ========================================================= */
 
 if ($isViewer) {
-
-    $currentProtectedFile =
-        strtolower(
-            basename(
-                $_SERVER['PHP_SELF'] ?? ''
-            )
-        );
-
-
-    $viewerAllowedPages = [
-        'index.php',
-        'dashboard.php'
-    ];
-
 
     if (
         !in_array(
@@ -247,9 +288,18 @@ if ($isViewer) {
         )
     ) {
 
-        header(
-            "Location: index.php"
-        );
+        /*
+         * Viewer attempted to open
+         * another protected page.
+         */
+
+        if (!headers_sent()) {
+
+            header(
+                "Location: index.php"
+            );
+
+        }
 
         exit;
 
@@ -259,7 +309,7 @@ if ($isViewer) {
 
 
 /* =========================================================
-   OPTIONAL GLOBAL VARIABLES
+   GLOBAL ACCESS VARIABLES
 ========================================================= */
 
 $GLOBALS['currentUserRole'] =
@@ -270,3 +320,68 @@ $GLOBALS['normalizedRole'] =
 
 $GLOBALS['isViewer'] =
     $isViewer;
+
+
+/* =========================================================
+   OPTIONAL HELPER FUNCTIONS
+======================================================== */
+
+/*
+|--------------------------------------------------------------------------
+| isViewer()
+|--------------------------------------------------------------------------
+*/
+
+if (!function_exists('isViewer')) {
+
+    function isViewer(): bool
+    {
+        return !empty(
+            $GLOBALS['isViewer']
+        );
+    }
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| requireNonViewer()
+|--------------------------------------------------------------------------
+| Gamitin kung may page/action na dapat
+| ADMIN / ACCOUNTING / NON-VIEWER lamang.
+|--------------------------------------------------------------------------
+*/
+
+if (!function_exists('requireNonViewer')) {
+
+    function requireNonViewer(): void
+    {
+
+        if (
+            !empty(
+                $GLOBALS['isViewer']
+            )
+        ) {
+
+            if (!headers_sent()) {
+
+                header(
+                    "Location: index.php"
+                );
+
+            }
+
+            exit;
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   END AUTH
+========================================================= */
+```
