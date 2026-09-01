@@ -1,10 +1,15 @@
 
 <?php
 
+/* =========================================================
+   AUTHENTICATION
+========================================================= */
+
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/config.php';
 
 $pageTitle = "Dashboard";
+
 
 /* =========================================================
    USER ROLE
@@ -17,7 +22,7 @@ $currentUserRole = trim((string)(
     ?? ''
 ));
 
-$normalizedRole = strtolower($currentUserRole);
+$normalizedRole = strtolower(trim($currentUserRole));
 
 $isViewer = in_array(
     $normalizedRole,
