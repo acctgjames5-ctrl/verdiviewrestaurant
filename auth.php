@@ -2,51 +2,21 @@
 <?php
 /*
 |--------------------------------------------------------------------------
-| AUTH.PHP
+| AUTHENTICATION GUARD
 |--------------------------------------------------------------------------
-| CENTRAL AUTHENTICATION + ACCESS CONTROL
-|--------------------------------------------------------------------------
-| IMPORTANT:
-| This file MUST be loaded before ANY HTML/output.
-|
-| Viewer:
-|   - index.php       = ALLOWED
-|   - dashboard.php   = ALLOWED
-|   - all other pages = BLOCKED
-|
+| VIEWER:
+| - index.php / dashboard.php lamang
+| - lahat ng ibang protected pages = BLOCKED
 |--------------------------------------------------------------------------
 */
 
+/*
+ * IMPORTANT:
+ * Huwag maglagay ng kahit anong output bago itong file.
+ */
 
-/* =========================================================
-   SESSION
-========================================================= */
-
-if (session_status() === PHP_SESSION_NONE) {
-
-    /*
-     * Only start the session if headers have not
-     * already been sent.
-     */
-
-    if (!headers_sent()) {
-
-        session_start();
-
-    } else {
-
-        /*
-         * If output already happened, do NOT call
-         * session_start() because PHP will generate:
-         *
-         * "Session cannot be started after headers
-         *  have already been sent"
-         */
-
-        return;
-
-    }
-
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
 }
 
 
@@ -55,22 +25,11 @@ if (session_status() === PHP_SESSION_NONE) {
 ========================================================= */
 
 if (
-    empty($_SESSION['logged_in']) ||
+    !isset($_SESSION['logged_in']) ||
     $_SESSION['logged_in'] !== true
 ) {
-
-    if (!headers_sent()) {
-
-        header(
-            "Location: login.php"
-        );
-
-        exit;
-
-    }
-
+    header('Location: login.php');
     exit;
-
 }
 
 
@@ -78,33 +37,24 @@ if (
    PREVENT CACHE
 ========================================================= */
 
-if (!headers_sent()) {
+header(
+    'Cache-Control: no-store, no-cache, must-revalidate, max-age=0'
+);
 
-    header(
-        "Cache-Control: no-store, no-cache, must-revalidate, max-age=0"
-    );
+header(
+    'Cache-Control: post-check=0, pre-check=0',
+    false
+);
 
-    header(
-        "Cache-Control: post-check=0, pre-check=0",
-        false
-    );
-
-    header(
-        "Pragma: no-cache"
-    );
-
-    header(
-        "Expires: 0"
-    );
-
-}
+header('Pragma: no-cache');
+header('Expires: 0');
 
 
 /* =========================================================
    USER ID
 ========================================================= */
 
-$userId = (int)(
+$userId = (int) (
     $_SESSION['user_id']
     ?? $_SESSION['id']
     ?? 0
@@ -112,11 +62,11 @@ $userId = (int)(
 
 
 /* =========================================================
-   SESSION ROLE
+   ROLE FROM SESSION
 ========================================================= */
 
 $currentUserRole = trim(
-    (string)(
+    (string) (
         $_SESSION['role']
         ?? $_SESSION['user_role']
         ?? $_SESSION['position']
@@ -126,7 +76,7 @@ $currentUserRole = trim(
 
 
 /* =========================================================
-   LOAD DATABASE CONFIG
+   LOAD DATABASE CONFIG IF NEEDED
 ========================================================= */
 
 if (
@@ -134,23 +84,18 @@ if (
     !($pdo instanceof PDO)
 ) {
 
-    $configFile =
-        __DIR__ . "/config.php";
+    $configFile = __DIR__ . '/config.php';
 
-
-    if (
-        file_exists($configFile)
-    ) {
+    if (is_file($configFile)) {
 
         require_once $configFile;
 
     }
-
 }
 
 
 /* =========================================================
-   GET REAL USER ROLE FROM DATABASE
+   GET ACTUAL USER ROLE FROM DATABASE
 ========================================================= */
 
 if (
@@ -161,31 +106,27 @@ if (
 
     try {
 
-        $stmtAuthUser = $pdo->prepare("
+        $stmtAuthUser = $pdo->prepare(
+            '
             SELECT *
-            FROM `user`
-            WHERE UserId = ?
+            FROM "user"
+            WHERE "UserId" = ?
             LIMIT 1
-        ");
+            '
+        );
 
         $stmtAuthUser->execute([
             $userId
         ]);
 
-        $authUser =
-            $stmtAuthUser->fetch(
-                PDO::FETCH_ASSOC
-            );
+        $authUser = $stmtAuthUser->fetch(
+            PDO::FETCH_ASSOC
+        );
 
 
         if ($authUser) {
 
-            /*
-             * Possible role column names.
-             */
-
             $possibleRoleFields = [
-
                 'role',
                 'Role',
                 'user_role',
@@ -193,13 +134,11 @@ if (
                 'Position',
                 'job_title',
                 'type'
-
             ];
 
 
             foreach (
-                $possibleRoleFields
-                as $field
+                $possibleRoleFields as $field
             ) {
 
                 if (
@@ -208,23 +147,16 @@ if (
                         $authUser
                     ) &&
                     trim(
-                        (string)$authUser[$field]
+                        (string) $authUser[$field]
                     ) !== ''
                 ) {
 
-                    $currentUserRole =
-                        trim(
-                            (string)$authUser[$field]
-                        );
-
-
-                    /*
-                     * Keep session synchronized.
-                     */
+                    $currentUserRole = trim(
+                        (string) $authUser[$field]
+                    );
 
                     $_SESSION['role'] =
                         $currentUserRole;
-
 
                     break;
 
@@ -237,8 +169,8 @@ if (
     } catch (Throwable $e) {
 
         /*
-         * If database role lookup fails,
-         * use the session role.
+         * Kapag may database problem,
+         * gamitin ang role na nasa session.
          */
 
     }
@@ -250,12 +182,11 @@ if (
    NORMALIZE ROLE
 ========================================================= */
 
-$normalizedRole =
-    strtolower(
-        trim(
-            (string)$currentUserRole
-        )
-    );
+$normalizedRole = strtolower(
+    trim(
+        (string) $currentUserRole
+    )
+);
 
 
 /* =========================================================
@@ -265,11 +196,9 @@ $normalizedRole =
 $isViewer = in_array(
     $normalizedRole,
     [
-
         'viewer',
         'view only',
         'view-only'
-
     ],
     true
 );
@@ -279,13 +208,11 @@ $isViewer = in_array(
    CURRENT PAGE
 ========================================================= */
 
-$currentProtectedFile =
-    strtolower(
-        basename(
-            $_SERVER['PHP_SELF']
-            ?? ''
-        )
-    );
+$currentProtectedFile = strtolower(
+    basename(
+        $_SERVER['PHP_SELF'] ?? ''
+    )
+);
 
 
 /* =========================================================
@@ -293,38 +220,26 @@ $currentProtectedFile =
 ========================================================= */
 
 $viewerAllowedPages = [
-
     'index.php',
     'dashboard.php'
-
 ];
 
 
 /* =========================================================
-   VIEWER SERVER-SIDE ACCESS CONTROL
+   BLOCK VIEWER
 ========================================================= */
 
-if ($isViewer) {
+if (
+    $isViewer &&
+    !in_array(
+        $currentProtectedFile,
+        $viewerAllowedPages,
+        true
+    )
+) {
 
-    if (
-        !in_array(
-            $currentProtectedFile,
-            $viewerAllowedPages,
-            true
-        )
-    ) {
-
-        if (!headers_sent()) {
-
-            header(
-                "Location: index.php"
-            );
-
-        }
-
-        exit;
-
-    }
+    header('Location: index.php');
+    exit;
 
 }
 
@@ -344,22 +259,27 @@ $GLOBALS['isViewer'] =
 
 
 /* =========================================================
-   OPTIONAL CONSTANTS
+   HELPER FUNCTIONS
 ========================================================= */
 
-if (
-    !defined('USER_IS_VIEWER')
-) {
+if (!function_exists('userIsViewer')) {
 
-    define(
-        'USER_IS_VIEWER',
-        $isViewer
-    );
+    function userIsViewer(): bool
+    {
+        return !empty(
+            $GLOBALS['isViewer']
+        );
+    }
 
 }
 
 
-/* =========================================================
-   END AUTH.PHP
-========================================================= */
+if (!function_exists('userCanEdit')) {
+
+    function userCanEdit(): bool
+    {
+        return !userIsViewer();
+    }
+
+}
 ```
