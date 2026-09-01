@@ -1,27 +1,27 @@
+```php
 <?php
-
 /*
 |--------------------------------------------------------------------------
 | AUTHENTICATION GUARD
 |--------------------------------------------------------------------------
 | IMPORTANT:
-| This file must be included BEFORE ANY HTML OUTPUT.
+| - auth.php MUST be included BEFORE ANY HTML/OUTPUT.
+| - Do NOT put spaces, HTML, echo, or blank output before <?php.
 |
 | VIEWER:
-| - index.php / dashboard.php = ALLOWED
-| - all other protected pages = BLOCKED
+| - Allowed: index.php / dashboard.php
+| - Blocked: sales.php, expenses.php, purchases.php,
+|            inventory.php, users.php, etc.
 |--------------------------------------------------------------------------
 */
 
 
 /* =========================================================
-   START SESSION
+   START SESSION SAFELY
 ========================================================= */
 
-if (session_status() === PHP_SESSION_NONE) {
-
+if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
-
 }
 
 
@@ -30,13 +30,11 @@ if (session_status() === PHP_SESSION_NONE) {
 ========================================================= */
 
 if (
-    empty($_SESSION['logged_in']) ||
+    !isset($_SESSION['logged_in']) ||
     $_SESSION['logged_in'] !== true
 ) {
-
     header('Location: login.php');
     exit;
-
 }
 
 
@@ -54,15 +52,14 @@ header(
 );
 
 header('Pragma: no-cache');
-
 header('Expires: 0');
 
 
 /* =========================================================
-   USER ID
+   SESSION USER ID
 ========================================================= */
 
-$userId = (int) (
+$userId = (int)(
     $_SESSION['user_id']
     ?? $_SESSION['id']
     ?? 0
@@ -70,95 +67,124 @@ $userId = (int) (
 
 
 /* =========================================================
-   ROLE FROM SESSION
+   SESSION ROLE
 ========================================================= */
 
-$currentUserRole = trim((string) (
-    $_SESSION['role']
-    ?? $_SESSION['user_role']
-    ?? $_SESSION['position']
-    ?? ''
-));
+$currentUserRole = trim(
+    (string)(
+        $_SESSION['role']
+        ?? $_SESSION['user_role']
+        ?? $_SESSION['position']
+        ?? ''
+    )
+);
 
 
 /* =========================================================
-   LOAD DATABASE CONFIG IF NEEDED
+   DATABASE ROLE VERIFICATION
 ========================================================= */
 
-if (
-    !isset($pdo) ||
-    !($pdo instanceof PDO)
-) {
-
-    $configFile = __DIR__ . '/config.php';
-
-    if (file_exists($configFile)) {
-
-        require_once $configFile;
-
-    }
-
-}
-
-
-/* =========================================================
-   GET ACTUAL USER ROLE FROM DATABASE
-========================================================= */
-
-if (
-    $userId > 0 &&
-    isset($pdo) &&
-    $pdo instanceof PDO
-) {
+if ($userId > 0) {
 
     try {
 
-        $stmtAuthUser = $pdo->prepare(
-            'SELECT *
-             FROM "user"
-             WHERE "UserId" = ?
-             LIMIT 1'
-        );
+        /*
+         * Load config only if PDO is not already available.
+         */
 
-        $stmtAuthUser->execute([
-            $userId
-        ]);
+        if (
+            !isset($pdo) ||
+            !($pdo instanceof PDO)
+        ) {
 
-        $authUser = $stmtAuthUser->fetch(
-            PDO::FETCH_ASSOC
-        );
+            $configFile = __DIR__ . '/config.php';
 
+            if (is_file($configFile)) {
+                require_once $configFile;
+            }
 
-        if ($authUser) {
-
-            $possibleRoleFields = [
-                'role',
-                'Role',
-                'user_role',
-                'position',
-                'Position',
-                'job_title',
-                'type'
-            ];
+        }
 
 
-            foreach (
-                $possibleRoleFields
-                as $field
-            ) {
+        /* -----------------------------------------------------
+           GET USER FROM DATABASE
+        ----------------------------------------------------- */
 
-                if (
-                    isset($authUser[$field]) &&
-                    trim(
-                        (string)$authUser[$field]
-                    ) !== ''
+        if (
+            isset($pdo) &&
+            $pdo instanceof PDO
+        ) {
+
+            $stmtAuthUser = $pdo->prepare(
+                '
+                SELECT *
+                FROM "user"
+                WHERE UserId = ?
+                LIMIT 1
+                '
+            );
+
+            $stmtAuthUser->execute([
+                $userId
+            ]);
+
+            $authUser = $stmtAuthUser->fetch(
+                PDO::FETCH_ASSOC
+            );
+
+
+            /* -------------------------------------------------
+               FIND ROLE FIELD
+            ------------------------------------------------- */
+
+            if ($authUser) {
+
+                $possibleRoleFields = [
+                    'role',
+                    'Role',
+                    'user_role',
+                    'UserRole',
+                    'position',
+                    'Position',
+                    'job_title',
+                    'JobTitle',
+                    'type',
+                    'Type'
+                ];
+
+
+                foreach (
+                    $possibleRoleFields
+                    as $field
                 ) {
 
-                    $currentUserRole = trim(
-                        (string)$authUser[$field]
-                    );
+                    if (
+                        array_key_exists(
+                            $field,
+                            $authUser
+                        )
+                        &&
+                        trim(
+                            (string)$authUser[$field]
+                        ) !== ''
+                    ) {
 
-                    break;
+                        $currentUserRole =
+                            trim(
+                                (string)$authUser[$field]
+                            );
+
+                        /*
+                         * Keep session synchronized
+                         * with database role.
+                         */
+
+                        $_SESSION['role'] =
+                            $currentUserRole;
+
+                        break;
+
+                    }
 
                 }
 
@@ -170,25 +196,13 @@ if (
 
         /*
          * If database role lookup fails,
-         * use the session role.
+         * retain the session role.
+         *
+         * Do NOT output the error because this file
+         * must never break HTTP headers.
          */
 
     }
-
-}
-
-
-/* =========================================================
-   SAVE ROLE TO SESSION
-========================================================= */
-
-if (
-    trim(
-        (string)$currentUserRole
-    ) !== ''
-) {
-
-    $_SESSION['role'] = $currentUserRole;
 
 }
 
@@ -220,51 +234,65 @@ $isViewer = in_array(
 
 
 /* =========================================================
-   VIEWER ALLOWED PAGES
-========================================================= */
-
-$viewerAllowedPages = [
-    'index.php',
-    'dashboard.php'
-];
-
-
-/* =========================================================
    CURRENT PAGE
 ========================================================= */
 
 $currentProtectedFile = strtolower(
     basename(
-        $_SERVER['PHP_SELF'] ?? ''
+        $_SERVER['SCRIPT_NAME']
+        ?? $_SERVER['PHP_SELF']
+        ?? ''
     )
 );
 
 
 /* =========================================================
-   BLOCK VIEWER
+   VIEWER ACCESS
+=========================================================
+   Viewer is allowed ONLY on dashboard pages.
+
+   IMPORTANT:
+   Do not allow sales.php, expenses.php,
+   purchases.php, inventory.php, etc.
 ========================================================= */
 
-if (
-    $isViewer &&
-    !in_array(
-        $currentProtectedFile,
-        $viewerAllowedPages,
-        true
-    )
-) {
+if ($isViewer) {
 
-    header('Location: index.php');
-    exit;
+    $viewerAllowedPages = [
+        'index.php',
+        'dashboard.php'
+    ];
+
+
+    if (
+        !in_array(
+            $currentProtectedFile,
+            $viewerAllowedPages,
+            true
+        )
+    ) {
+
+        header(
+            'Location: index.php'
+        );
+
+        exit;
+
+    }
 
 }
 
 
 /* =========================================================
-   GLOBAL VARIABLES
+   GLOBAL ROLE VARIABLES
 ========================================================= */
 
-$GLOBALS['currentUserRole'] = $currentUserRole;
+$GLOBALS['currentUserRole'] =
+    $currentUserRole;
 
-$GLOBALS['normalizedRole'] = $normalizedRole;
+$GLOBALS['normalizedRole'] =
+    $normalizedRole;
 
-$GLOBALS['isViewer'] = $isViewer;
+$GLOBALS['isViewer'] =
+    $isViewer;
+```
