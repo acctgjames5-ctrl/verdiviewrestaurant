@@ -2,21 +2,19 @@
 
 /*
 |--------------------------------------------------------------------------
-| AUTHENTICATION + ACCESS CONTROL
+| AUTHENTICATION GUARD
 |--------------------------------------------------------------------------
 | IMPORTANT:
-| This file MUST be loaded before ANY HTML/output.
-|
-| Viewer:
-|   - index.php       = ALLOWED
-|   - dashboard.php   = ALLOWED
-|   - all other pages = BLOCKED
+| - Walang HTML/output bago ang PHP
+| - Huwag maglagay ng closing ?> sa file
+| - Session ay sisimulan lamang kung hindi pa active
+| - Viewer = Dashboard lamang
 |--------------------------------------------------------------------------
 */
 
 
 /* =========================================================
-   START SESSION
+   START SESSION SAFELY
 ========================================================= */
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
@@ -29,7 +27,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 ========================================================= */
 
 if (
-    !isset($_SESSION['logged_in']) ||
+    empty($_SESSION['logged_in']) ||
     $_SESSION['logged_in'] !== true
 ) {
     header('Location: login.php');
@@ -38,7 +36,7 @@ if (
 
 
 /* =========================================================
-   PREVENT CACHE
+   NO CACHE
 ========================================================= */
 
 header(
@@ -55,7 +53,7 @@ header('Expires: 0');
 
 
 /* =========================================================
-   USER ID
+   GET USER ID
 ========================================================= */
 
 $userId = (int) (
@@ -66,60 +64,54 @@ $userId = (int) (
 
 
 /* =========================================================
-   SESSION ROLE
+   GET ROLE FROM SESSION
 ========================================================= */
 
-$currentUserRole = trim(
-    (string) (
-        $_SESSION['role']
-        ?? $_SESSION['user_role']
-        ?? $_SESSION['position']
-        ?? ''
-    )
-);
+$currentUserRole = trim((string) (
+    $_SESSION['role']
+    ?? $_SESSION['user_role']
+    ?? $_SESSION['position']
+    ?? ''
+));
 
 
 /* =========================================================
-   LOAD DATABASE ROLE
+   DATABASE ROLE CHECK
 ========================================================= */
 
 if ($userId > 0) {
 
-    try {
+    /*
+     * config.php should normally already be loaded by the page.
+     *
+     * We only load it here if PDO does not yet exist.
+     */
 
-        /*
-         * Load config.php only if PDO does not already exist.
-         */
+    if (
+        !isset($pdo) ||
+        !($pdo instanceof PDO)
+    ) {
 
-        if (
-            !isset($pdo) ||
-            !($pdo instanceof PDO)
-        ) {
+        $configFile = __DIR__ . '/config.php';
 
-            $configFile = __DIR__ . '/config.php';
-
-            if (is_file($configFile)) {
-                require_once $configFile;
-            }
+        if (is_file($configFile)) {
+            require_once $configFile;
         }
+    }
 
 
-        /*
-         * Get actual user record from database.
-         */
+    if (
+        isset($pdo) &&
+        $pdo instanceof PDO
+    ) {
 
-        if (
-            isset($pdo) &&
-            $pdo instanceof PDO
-        ) {
+        try {
 
             $stmtAuthUser = $pdo->prepare(
-                '
-                SELECT *
-                FROM "user"
-                WHERE "UserId" = ?
-                LIMIT 1
-                '
+                'SELECT *
+                 FROM "user"
+                 WHERE "UserId" = ?
+                 LIMIT 1'
             );
 
             $stmtAuthUser->execute([
@@ -130,10 +122,6 @@ if ($userId > 0) {
                 PDO::FETCH_ASSOC
             );
 
-
-            /*
-             * Find role column.
-             */
 
             if ($authUser) {
 
@@ -157,30 +145,41 @@ if ($userId > 0) {
                         array_key_exists(
                             $field,
                             $authUser
-                        ) &&
-                        trim(
-                            (string)$authUser[$field]
-                        ) !== ''
+                        )
                     ) {
 
-                        $currentUserRole =
-                            trim(
-                                (string)$authUser[$field]
-                            );
+                        $roleValue = trim(
+                            (string)$authUser[$field]
+                        );
 
-                        break;
+
+                        if ($roleValue !== '') {
+
+                            $currentUserRole =
+                                $roleValue;
+
+
+                            /*
+                             * Keep session synchronized.
+                             */
+
+                            $_SESSION['role'] =
+                                $currentUserRole;
+
+                            break;
+                        }
                     }
                 }
             }
+
+        } catch (Throwable $e) {
+
+            /*
+             * If database role lookup fails,
+             * keep using the session role.
+             */
+
         }
-
-    } catch (Throwable $e) {
-
-        /*
-         * If database lookup fails,
-         * continue using session role.
-         */
-
     }
 }
 
@@ -197,7 +196,7 @@ $normalizedRole = strtolower(
 
 
 /* =========================================================
-   VIEWER DETECTION
+   VIEWER
 ========================================================= */
 
 $isViewer = in_array(
@@ -209,17 +208,6 @@ $isViewer = in_array(
     ],
     true
 );
-
-
-/* =========================================================
-   SAVE ROLE BACK TO SESSION
-========================================================= */
-
-if ($currentUserRole !== '') {
-
-    $_SESSION['role'] =
-        $currentUserRole;
-}
 
 
 /* =========================================================
@@ -244,7 +232,7 @@ $viewerAllowedPages = [
 
 
 /* =========================================================
-   BLOCK VIEWER
+   BLOCK VIEWER FROM OTHER PAGES
 ========================================================= */
 
 if (
@@ -273,4 +261,3 @@ $GLOBALS['normalizedRole'] =
 
 $GLOBALS['isViewer'] =
     $isViewer;
-?>
