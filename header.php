@@ -2,12 +2,15 @@
 
 /* =========================================================
    SESSION
+   NOTE:
+   Session should be started by auth.php / login handler.
+   This file only reads the existing session.
 ========================================================= */
 
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    // Do not call session_start() here.
+    // This prevents "headers already sent" errors.
 }
-
 
 /* =========================================================
    PAGE TITLE
