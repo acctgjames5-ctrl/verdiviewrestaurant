@@ -1,30 +1,21 @@
+```php
 <?php
 /*
 |--------------------------------------------------------------------------
-| AUTHENTICATION + ACCESS CONTROL
+| AUTH.PHP
+|--------------------------------------------------------------------------
+| CENTRAL AUTHENTICATION + ACCESS CONTROL
 |--------------------------------------------------------------------------
 | IMPORTANT:
-| auth.php must be loaded BEFORE ANY HTML OUTPUT.
+| This file MUST be loaded before ANY HTML/output.
 |
-| VIEWER:
-| - index.php / dashboard.php ONLY
-| - Sales       = BLOCKED
-| - Expenses    = BLOCKED
-| - Purchases   = BLOCKED
-| - Inventory   = BLOCKED
-| - Bank Recon  = BLOCKED
-| - Reports     = BLOCKED
+| Viewer:
+|   - index.php       = ALLOWED
+|   - dashboard.php   = ALLOWED
+|   - all other pages = BLOCKED
+|
 |--------------------------------------------------------------------------
 */
-
-
-/* =========================================================
-   OUTPUT BUFFER
-========================================================= */
-
-if (!ob_get_level()) {
-    ob_start();
-}
 
 
 /* =========================================================
@@ -32,7 +23,30 @@ if (!ob_get_level()) {
 ========================================================= */
 
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+
+    /*
+     * Only start the session if headers have not
+     * already been sent.
+     */
+
+    if (!headers_sent()) {
+
+        session_start();
+
+    } else {
+
+        /*
+         * If output already happened, do NOT call
+         * session_start() because PHP will generate:
+         *
+         * "Session cannot be started after headers
+         *  have already been sent"
+         */
+
+        return;
+
+    }
+
 }
 
 
@@ -45,8 +59,18 @@ if (
     $_SESSION['logged_in'] !== true
 ) {
 
-    header("Location: login.php");
+    if (!headers_sent()) {
+
+        header(
+            "Location: login.php"
+        );
+
+        exit;
+
+    }
+
     exit;
+
 }
 
 
@@ -65,9 +89,14 @@ if (!headers_sent()) {
         false
     );
 
-    header("Pragma: no-cache");
+    header(
+        "Pragma: no-cache"
+    );
 
-    header("Expires: 0");
+    header(
+        "Expires: 0"
+    );
+
 }
 
 
@@ -83,119 +112,121 @@ $userId = (int)(
 
 
 /* =========================================================
-   GET ROLE FROM SESSION FIRST
+   SESSION ROLE
 ========================================================= */
 
-$currentUserRole = trim((string)(
-    $_SESSION['role']
-    ?? $_SESSION['user_role']
-    ?? $_SESSION['position']
-    ?? ''
-));
+$currentUserRole = trim(
+    (string)(
+        $_SESSION['role']
+        ?? $_SESSION['user_role']
+        ?? $_SESSION['position']
+        ?? ''
+    )
+);
 
 
 /* =========================================================
-   DATABASE ROLE CHECK
+   LOAD DATABASE CONFIG
 ========================================================= */
 
-if ($userId > 0) {
+if (
+    !isset($pdo) ||
+    !($pdo instanceof PDO)
+) {
+
+    $configFile =
+        __DIR__ . "/config.php";
+
+
+    if (
+        file_exists($configFile)
+    ) {
+
+        require_once $configFile;
+
+    }
+
+}
+
+
+/* =========================================================
+   GET REAL USER ROLE FROM DATABASE
+========================================================= */
+
+if (
+    $userId > 0 &&
+    isset($pdo) &&
+    $pdo instanceof PDO
+) {
 
     try {
 
-        /*
-         * Load config.php only if PDO is not already available.
-         */
+        $stmtAuthUser = $pdo->prepare("
+            SELECT *
+            FROM `user`
+            WHERE UserId = ?
+            LIMIT 1
+        ");
 
-        if (
-            !isset($pdo) ||
-            !($pdo instanceof PDO)
-        ) {
+        $stmtAuthUser->execute([
+            $userId
+        ]);
 
-            $configFile = __DIR__ . "/config.php";
-
-            if (file_exists($configFile)) {
-
-                require_once $configFile;
-
-            }
-
-        }
+        $authUser =
+            $stmtAuthUser->fetch(
+                PDO::FETCH_ASSOC
+            );
 
 
-        /*
-         * If PDO is available, get the real role
-         * directly from the database.
-         */
+        if ($authUser) {
 
-        if (
-            isset($pdo) &&
-            $pdo instanceof PDO
-        ) {
+            /*
+             * Possible role column names.
+             */
 
-            $stmtAuthUser = $pdo->prepare("
-                SELECT *
-                FROM `user`
-                WHERE UserId = ?
-                LIMIT 1
-            ");
+            $possibleRoleFields = [
 
-            $stmtAuthUser->execute([
-                $userId
-            ]);
+                'role',
+                'Role',
+                'user_role',
+                'position',
+                'Position',
+                'job_title',
+                'type'
 
-            $authUser =
-                $stmtAuthUser->fetch(
-                    PDO::FETCH_ASSOC
-                );
+            ];
 
 
-            if ($authUser) {
+            foreach (
+                $possibleRoleFields
+                as $field
+            ) {
 
-                $possibleRoleFields = [
-                    'role',
-                    'Role',
-                    'user_role',
-                    'position',
-                    'Position',
-                    'job_title',
-                    'type'
-                ];
-
-
-                foreach (
-                    $possibleRoleFields
-                    as $field
+                if (
+                    array_key_exists(
+                        $field,
+                        $authUser
+                    ) &&
+                    trim(
+                        (string)$authUser[$field]
+                    ) !== ''
                 ) {
 
-                    if (
-                        array_key_exists(
-                            $field,
-                            $authUser
-                        )
-                    ) {
-
-                        $dbRole = trim(
+                    $currentUserRole =
+                        trim(
                             (string)$authUser[$field]
                         );
 
 
-                        if ($dbRole !== '') {
+                    /*
+                     * Keep session synchronized.
+                     */
 
-                            $currentUserRole =
-                                $dbRole;
+                    $_SESSION['role'] =
+                        $currentUserRole;
 
-                            /*
-                             * Keep session synchronized.
-                             */
 
-                            $_SESSION['role'] =
-                                $currentUserRole;
-
-                            break;
-
-                        }
-
-                    }
+                    break;
 
                 }
 
@@ -207,7 +238,7 @@ if ($userId > 0) {
 
         /*
          * If database role lookup fails,
-         * continue using the session role.
+         * use the session role.
          */
 
     }
@@ -219,11 +250,12 @@ if ($userId > 0) {
    NORMALIZE ROLE
 ========================================================= */
 
-$normalizedRole = strtolower(
-    trim(
-        (string)$currentUserRole
-    )
-);
+$normalizedRole =
+    strtolower(
+        trim(
+            (string)$currentUserRole
+        )
+    );
 
 
 /* =========================================================
@@ -233,9 +265,11 @@ $normalizedRole = strtolower(
 $isViewer = in_array(
     $normalizedRole,
     [
+
         'viewer',
         'view only',
         'view-only'
+
     ],
     true
 );
@@ -245,11 +279,13 @@ $isViewer = in_array(
    CURRENT PAGE
 ========================================================= */
 
-$currentProtectedFile = strtolower(
-    basename(
-        $_SERVER['PHP_SELF'] ?? ''
-    )
-);
+$currentProtectedFile =
+    strtolower(
+        basename(
+            $_SERVER['PHP_SELF']
+            ?? ''
+        )
+    );
 
 
 /* =========================================================
@@ -257,8 +293,10 @@ $currentProtectedFile = strtolower(
 ========================================================= */
 
 $viewerAllowedPages = [
+
     'index.php',
     'dashboard.php'
+
 ];
 
 
@@ -275,12 +313,6 @@ if ($isViewer) {
             true
         )
     ) {
-
-        /*
-         * Do not allow Viewer to access
-         * Sales / Expenses / Purchases /
-         * Inventory / Banking / Reports
-         */
 
         if (!headers_sent()) {
 
@@ -312,26 +344,22 @@ $GLOBALS['isViewer'] =
 
 
 /* =========================================================
-   OPTIONAL SIMPLE CONSTANTS
+   OPTIONAL CONSTANTS
 ========================================================= */
 
-if (!defined('CURRENT_USER_ID')) {
-    define(
-        'CURRENT_USER_ID',
-        $userId
-    );
-}
+if (
+    !defined('USER_IS_VIEWER')
+) {
 
-if (!defined('CURRENT_USER_ROLE')) {
     define(
-        'CURRENT_USER_ROLE',
-        $currentUserRole
-    );
-}
-
-if (!defined('IS_VIEWER')) {
-    define(
-        'IS_VIEWER',
+        'USER_IS_VIEWER',
         $isViewer
     );
+
 }
+
+
+/* =========================================================
+   END AUTH.PHP
+========================================================= */
+```
