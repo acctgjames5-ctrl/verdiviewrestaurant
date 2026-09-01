@@ -1,39 +1,52 @@
-```php
 <?php
 /*
 |--------------------------------------------------------------------------
-| AUTHENTICATION + ROLE ACCESS CONTROL
+| AUTHENTICATION + ACCESS CONTROL
 |--------------------------------------------------------------------------
-| Ilagay ito sa lahat ng PROTECTED pages:
-|
-| require_once "auth.php";
-|
-| RULES:
-| - Hindi naka-login  → login.php
-| - VIEWER            → Dashboard lamang
-| - NON-VIEWER        → normal access
-|
 | IMPORTANT:
-| Server-side restriction ito.
-| Kahit direktang i-type ng Viewer ang:
-| sales.php
-| expenses.php
-| purchases.php
-| inventory.php
-| bank_reconciliation.php
-| reports.php
+| auth.php must be loaded BEFORE ANY HTML OUTPUT.
 |
-| automatic siyang ibabalik sa index.php.
+| VIEWER:
+| - index.php / dashboard.php ONLY
+| - Sales       = BLOCKED
+| - Expenses    = BLOCKED
+| - Purchases   = BLOCKED
+| - Inventory   = BLOCKED
+| - Bank Recon  = BLOCKED
+| - Reports     = BLOCKED
 |--------------------------------------------------------------------------
 */
+
+
+/* =========================================================
+   OUTPUT BUFFER
+========================================================= */
+
+if (!ob_get_level()) {
+    ob_start();
+}
 
 
 /* =========================================================
    SESSION
 ========================================================= */
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
+if (session_status() === PHP_SESSION_NONE) {
     session_start();
+}
+
+
+/* =========================================================
+   CHECK LOGIN
+========================================================= */
+
+if (
+    empty($_SESSION['logged_in']) ||
+    $_SESSION['logged_in'] !== true
+) {
+
+    header("Location: login.php");
+    exit;
 }
 
 
@@ -53,30 +66,8 @@ if (!headers_sent()) {
     );
 
     header("Pragma: no-cache");
+
     header("Expires: 0");
-
-}
-
-
-/* =========================================================
-   CHECK LOGIN
-========================================================= */
-
-if (
-    empty($_SESSION['logged_in']) ||
-    $_SESSION['logged_in'] !== true
-) {
-
-    if (!headers_sent()) {
-
-        header(
-            "Location: login.php"
-        );
-
-    }
-
-    exit;
-
 }
 
 
@@ -92,116 +83,119 @@ $userId = (int)(
 
 
 /* =========================================================
-   SESSION ROLE
+   GET ROLE FROM SESSION FIRST
 ========================================================= */
 
-$currentUserRole = trim(
-    (string)(
-        $_SESSION['role']
-        ?? $_SESSION['user_role']
-        ?? $_SESSION['position']
-        ?? ''
-    )
-);
+$currentUserRole = trim((string)(
+    $_SESSION['role']
+    ?? $_SESSION['user_role']
+    ?? $_SESSION['position']
+    ?? ''
+));
 
 
 /* =========================================================
-   LOAD DATABASE CONNECTION
+   DATABASE ROLE CHECK
 ========================================================= */
 
-if (
-    !isset($pdo) ||
-    !($pdo instanceof PDO)
-) {
-
-    $configFile = __DIR__ . "/config.php";
-
-    if (file_exists($configFile)) {
-
-        require_once $configFile;
-
-    }
-
-}
-
-
-/* =========================================================
-   GET ACTUAL USER ROLE FROM DATABASE
-=========================================================
-   Database role ang priority.
-   Mas safe ito kaysa puro session lang.
-========================================================= */
-
-if (
-    $userId > 0 &&
-    isset($pdo) &&
-    $pdo instanceof PDO
-) {
+if ($userId > 0) {
 
     try {
 
-        $stmtAuthUser = $pdo->prepare("
-            SELECT *
-            FROM `user`
-            WHERE UserId = ?
-            LIMIT 1
-        ");
+        /*
+         * Load config.php only if PDO is not already available.
+         */
 
-        $stmtAuthUser->execute([
-            $userId
-        ]);
+        if (
+            !isset($pdo) ||
+            !($pdo instanceof PDO)
+        ) {
 
-        $authUser = $stmtAuthUser->fetch(
-            PDO::FETCH_ASSOC
-        );
+            $configFile = __DIR__ . "/config.php";
 
+            if (file_exists($configFile)) {
 
-        if ($authUser) {
+                require_once $configFile;
 
-            /*
-             * Possible role column names.
-             */
+            }
 
-            $possibleRoleFields = [
-
-                'role',
-                'Role',
-                'user_role',
-                'position',
-                'Position',
-                'job_title',
-                'type'
-
-            ];
+        }
 
 
-            foreach (
-                $possibleRoleFields as $field
-            ) {
+        /*
+         * If PDO is available, get the real role
+         * directly from the database.
+         */
 
-                if (
-                    array_key_exists(
-                        $field,
-                        $authUser
-                    )
-                    &&
-                    trim(
-                        (string)$authUser[$field]
-                    ) !== ''
+        if (
+            isset($pdo) &&
+            $pdo instanceof PDO
+        ) {
+
+            $stmtAuthUser = $pdo->prepare("
+                SELECT *
+                FROM `user`
+                WHERE UserId = ?
+                LIMIT 1
+            ");
+
+            $stmtAuthUser->execute([
+                $userId
+            ]);
+
+            $authUser =
+                $stmtAuthUser->fetch(
+                    PDO::FETCH_ASSOC
+                );
+
+
+            if ($authUser) {
+
+                $possibleRoleFields = [
+                    'role',
+                    'Role',
+                    'user_role',
+                    'position',
+                    'Position',
+                    'job_title',
+                    'type'
+                ];
+
+
+                foreach (
+                    $possibleRoleFields
+                    as $field
                 ) {
 
-                    $currentUserRole = trim(
-                        (string)$authUser[$field]
-                    );
+                    if (
+                        array_key_exists(
+                            $field,
+                            $authUser
+                        )
+                    ) {
 
-                    /*
-                     * Keep session synchronized.
-                     */
+                        $dbRole = trim(
+                            (string)$authUser[$field]
+                        );
 
-                    $_SESSION['role'] =
-                        $currentUserRole;
 
-                    break;
+                        if ($dbRole !== '') {
+
+                            $currentUserRole =
+                                $dbRole;
+
+                            /*
+                             * Keep session synchronized.
+                             */
+
+                            $_SESSION['role'] =
+                                $currentUserRole;
+
+                            break;
+
+                        }
+
+                    }
 
                 }
 
@@ -212,10 +206,8 @@ if (
     } catch (Throwable $e) {
 
         /*
-         * Kung may DB error,
-         * gamitin ang session role.
-         *
-         * Huwag i-break ang page dito.
+         * If database role lookup fails,
+         * continue using the session role.
          */
 
     }
@@ -262,20 +254,16 @@ $currentProtectedFile = strtolower(
 
 /* =========================================================
    VIEWER ALLOWED PAGES
-=========================================================
-   Dashboard lamang.
 ========================================================= */
 
 $viewerAllowedPages = [
-
     'index.php',
     'dashboard.php'
-
 ];
 
 
 /* =========================================================
-   VIEWER SERVER-SIDE BLOCK
+   VIEWER SERVER-SIDE ACCESS CONTROL
 ========================================================= */
 
 if ($isViewer) {
@@ -289,8 +277,9 @@ if ($isViewer) {
     ) {
 
         /*
-         * Viewer attempted to open
-         * another protected page.
+         * Do not allow Viewer to access
+         * Sales / Expenses / Purchases /
+         * Inventory / Banking / Reports
          */
 
         if (!headers_sent()) {
@@ -309,7 +298,7 @@ if ($isViewer) {
 
 
 /* =========================================================
-   GLOBAL ACCESS VARIABLES
+   GLOBAL VARIABLES
 ========================================================= */
 
 $GLOBALS['currentUserRole'] =
@@ -323,65 +312,26 @@ $GLOBALS['isViewer'] =
 
 
 /* =========================================================
-   OPTIONAL HELPER FUNCTIONS
-======================================================== */
-
-/*
-|--------------------------------------------------------------------------
-| isViewer()
-|--------------------------------------------------------------------------
-*/
-
-if (!function_exists('isViewer')) {
-
-    function isViewer(): bool
-    {
-        return !empty(
-            $GLOBALS['isViewer']
-        );
-    }
-
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| requireNonViewer()
-|--------------------------------------------------------------------------
-| Gamitin kung may page/action na dapat
-| ADMIN / ACCOUNTING / NON-VIEWER lamang.
-|--------------------------------------------------------------------------
-*/
-
-if (!function_exists('requireNonViewer')) {
-
-    function requireNonViewer(): void
-    {
-
-        if (
-            !empty(
-                $GLOBALS['isViewer']
-            )
-        ) {
-
-            if (!headers_sent()) {
-
-                header(
-                    "Location: index.php"
-                );
-
-            }
-
-            exit;
-
-        }
-
-    }
-
-}
-
-
-/* =========================================================
-   END AUTH
+   OPTIONAL SIMPLE CONSTANTS
 ========================================================= */
-```
+
+if (!defined('CURRENT_USER_ID')) {
+    define(
+        'CURRENT_USER_ID',
+        $userId
+    );
+}
+
+if (!defined('CURRENT_USER_ROLE')) {
+    define(
+        'CURRENT_USER_ROLE',
+        $currentUserRole
+    );
+}
+
+if (!defined('IS_VIEWER')) {
+    define(
+        'IS_VIEWER',
+        $isViewer
+    );
+}
