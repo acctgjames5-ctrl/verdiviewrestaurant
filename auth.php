@@ -1,18 +1,23 @@
 <?php
+
 /*
 |--------------------------------------------------------------------------
-| AUTHENTICATION GUARD
+| AUTHENTICATION + ACCESS CONTROL
 |--------------------------------------------------------------------------
-| VIEWER:
-| - index.php / dashboard.php lamang
-| - lahat ng ibang protected pages = BLOCKED
+| IMPORTANT:
+| This file MUST be loaded before ANY HTML/output.
+|
+| Viewer:
+|   - index.php       = ALLOWED
+|   - dashboard.php   = ALLOWED
+|   - all other pages = BLOCKED
 |--------------------------------------------------------------------------
 */
 
-/*
- * IMPORTANT:
- * Huwag maglagay ng kahit anong output bago itong file.
- */
+
+/* =========================================================
+   START SESSION
+========================================================= */
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
@@ -61,7 +66,7 @@ $userId = (int) (
 
 
 /* =========================================================
-   ROLE FROM SESSION
+   SESSION ROLE
 ========================================================= */
 
 $currentUserRole = trim(
@@ -75,105 +80,108 @@ $currentUserRole = trim(
 
 
 /* =========================================================
-   LOAD DATABASE CONFIG IF NEEDED
+   LOAD DATABASE ROLE
 ========================================================= */
 
-if (
-    !isset($pdo) ||
-    !($pdo instanceof PDO)
-) {
-
-    $configFile = __DIR__ . '/config.php';
-
-    if (is_file($configFile)) {
-
-        require_once $configFile;
-
-    }
-}
-
-
-/* =========================================================
-   GET ACTUAL USER ROLE FROM DATABASE
-========================================================= */
-
-if (
-    $userId > 0 &&
-    isset($pdo) &&
-    $pdo instanceof PDO
-) {
+if ($userId > 0) {
 
     try {
 
-        $stmtAuthUser = $pdo->prepare(
-            '
-            SELECT *
-            FROM "user"
-            WHERE "UserId" = ?
-            LIMIT 1
-            '
-        );
+        /*
+         * Load config.php only if PDO does not already exist.
+         */
 
-        $stmtAuthUser->execute([
-            $userId
-        ]);
+        if (
+            !isset($pdo) ||
+            !($pdo instanceof PDO)
+        ) {
 
-        $authUser = $stmtAuthUser->fetch(
-            PDO::FETCH_ASSOC
-        );
+            $configFile = __DIR__ . '/config.php';
 
-
-        if ($authUser) {
-
-            $possibleRoleFields = [
-                'role',
-                'Role',
-                'user_role',
-                'position',
-                'Position',
-                'job_title',
-                'type'
-            ];
+            if (is_file($configFile)) {
+                require_once $configFile;
+            }
+        }
 
 
-            foreach (
-                $possibleRoleFields as $field
-            ) {
+        /*
+         * Get actual user record from database.
+         */
 
-                if (
-                    array_key_exists(
-                        $field,
-                        $authUser
-                    ) &&
-                    trim(
-                        (string) $authUser[$field]
-                    ) !== ''
+        if (
+            isset($pdo) &&
+            $pdo instanceof PDO
+        ) {
+
+            $stmtAuthUser = $pdo->prepare(
+                '
+                SELECT *
+                FROM "user"
+                WHERE "UserId" = ?
+                LIMIT 1
+                '
+            );
+
+            $stmtAuthUser->execute([
+                $userId
+            ]);
+
+            $authUser = $stmtAuthUser->fetch(
+                PDO::FETCH_ASSOC
+            );
+
+
+            /*
+             * Find role column.
+             */
+
+            if ($authUser) {
+
+                $possibleRoleFields = [
+                    'role',
+                    'Role',
+                    'user_role',
+                    'position',
+                    'Position',
+                    'job_title',
+                    'type'
+                ];
+
+
+                foreach (
+                    $possibleRoleFields
+                    as $field
                 ) {
 
-                    $currentUserRole = trim(
-                        (string) $authUser[$field]
-                    );
+                    if (
+                        array_key_exists(
+                            $field,
+                            $authUser
+                        ) &&
+                        trim(
+                            (string)$authUser[$field]
+                        ) !== ''
+                    ) {
 
-                    $_SESSION['role'] =
-                        $currentUserRole;
+                        $currentUserRole =
+                            trim(
+                                (string)$authUser[$field]
+                            );
 
-                    break;
-
+                        break;
+                    }
                 }
-
             }
-
         }
 
     } catch (Throwable $e) {
 
         /*
-         * Kapag may database problem,
-         * gamitin ang role na nasa session.
+         * If database lookup fails,
+         * continue using session role.
          */
 
     }
-
 }
 
 
@@ -183,7 +191,7 @@ if (
 
 $normalizedRole = strtolower(
     trim(
-        (string) $currentUserRole
+        (string)$currentUserRole
     )
 );
 
@@ -201,6 +209,17 @@ $isViewer = in_array(
     ],
     true
 );
+
+
+/* =========================================================
+   SAVE ROLE BACK TO SESSION
+========================================================= */
+
+if ($currentUserRole !== '') {
+
+    $_SESSION['role'] =
+        $currentUserRole;
+}
 
 
 /* =========================================================
@@ -239,7 +258,6 @@ if (
 
     header('Location: index.php');
     exit;
-
 }
 
 
@@ -255,29 +273,4 @@ $GLOBALS['normalizedRole'] =
 
 $GLOBALS['isViewer'] =
     $isViewer;
-
-
-/* =========================================================
-   HELPER FUNCTIONS
-========================================================= */
-
-if (!function_exists('userIsViewer')) {
-
-    function userIsViewer(): bool
-    {
-        return !empty(
-            $GLOBALS['isViewer']
-        );
-    }
-
-}
-
-
-if (!function_exists('userCanEdit')) {
-
-    function userCanEdit(): bool
-    {
-        return !userIsViewer();
-    }
-
-}
+?>
